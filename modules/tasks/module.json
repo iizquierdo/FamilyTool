@@ -15,7 +15,9 @@
                        "migrations/005_notifications.sql",
                        "migrations/006_recurrence.sql",
                        "migrations/007_credit.sql",
-                       "migrations/008_push.sql"
+                       "migrations/008_push.sql",
+                       "migrations/009_user_active.sql",
+                       "migrations/010_self_created_tasks.sql"
                    ],
     "api":  {
                 "basePath":  "/api/tasks",

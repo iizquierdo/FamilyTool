@@ -15,6 +15,7 @@ export default function ValidateModal({
 }) {
   const [task, setTask] = useState<Task | null>(null);
   const [approved, setApproved] = useState<Record<string, boolean>>({});
+  const [awardedPoints, setAwardedPoints] = useState('0');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -43,17 +44,20 @@ export default function ValidateModal({
   const unit = isPaid ? 'pts' : 'XP';
   const subs = task.subtasks || [];
   const hasSubs = subs.length > 0;
-  const payout = hasSubs
-    ? subs.filter((s) => approved[s.id]).reduce((sum, s) => sum + s.points, 0)
-    : isPaid
-      ? task.rewardPoints
-      : task.rewardXp;
+  const isSelfCreated = task.selfCreated;
+  const payout = isSelfCreated
+    ? Math.max(0, Math.floor(Number(awardedPoints) || 0))
+    : hasSubs
+      ? subs.filter((s) => approved[s.id]).reduce((sum, s) => sum + s.points, 0)
+      : isPaid
+        ? task.rewardPoints
+        : task.rewardXp;
 
   const confirm = async () => {
     setBusy(true);
     try {
       const approvedIds = hasSubs ? subs.filter((s) => approved[s.id]).map((s) => s.id) : undefined;
-      await familyApi.validateTask(task.id, validatorId, approvedIds);
+      await familyApi.validateTask(task.id, validatorId, approvedIds, isSelfCreated ? payout : undefined);
       onDone();
     } finally {
       setBusy(false);
@@ -66,8 +70,27 @@ export default function ValidateModal({
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
         <h2 className="text-lg font-extrabold text-slate-800">Revisar: {task.title}</h2>
         <p className="mt-1 text-xs text-slate-500">
-          {hasSubs ? 'Aprobá solo las subtareas bien hechas. Las que no apruebes no se pagan.' : 'Confirmá para pagar la recompensa.'}
+          {isSelfCreated
+            ? 'Actividad creada por el propio miembro. Definí cuántos puntos vale.'
+            : hasSubs
+              ? 'Aprobá solo las subtareas bien hechas. Las que no apruebes no se pagan.'
+              : 'Confirmá para pagar la recompensa.'}
         </p>
+
+        {isSelfCreated && (
+          <label className="mt-4 block text-xs text-slate-400">
+            Puntos XP a otorgar
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={awardedPoints}
+              onChange={(e) => setAwardedPoints(e.target.value)}
+              placeholder="0"
+              className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-blue-400"
+            />
+          </label>
+        )}
 
         {hasSubs && (
           <div className="mt-4 space-y-2">

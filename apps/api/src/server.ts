@@ -2242,13 +2242,16 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         const result = await pool.query(
-            'SELECT id, email, password FROM "User" WHERE LOWER(email) = $1 LIMIT 1',
+            'SELECT id, email, password, active FROM "User" WHERE LOWER(email) = $1 LIMIT 1',
             [email]
         );
         const dbUser = result.rows[0];
 
         if (!dbUser || !verifyPassword(password, dbUser.password)) {
             return res.status(401).json({ error: 'Invalid credentials.' });
+        }
+        if (dbUser.active === false) {
+            return res.status(403).json({ error: 'Account is inactive.' });
         }
 
         // Migración transparente: si el password estaba en texto plano heredado, se re-hashea.

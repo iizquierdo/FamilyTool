@@ -1,15 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../auth';
-import { familyApi, familyRecurrences, humanizeRrule, type Task, type Withdrawal, type FamilyMember, type FamilyGoal, type FamilyConfig, type Recurrence } from '../family';
+import { familyApi, familyRecurrences, humanizeRrule, type Task, type Withdrawal, type FamilyMember, type FamilyMemberFull, type FamilyGoal, type FamilyConfig, type Recurrence } from '../family';
+import { ApiError } from '../api';
 import { Card, Button, Spinner, Points, EmptyState } from '../ui';
 import ValidateModal from '../components/ValidateModal';
+import Avatar from '../components/Avatar';
 
-type Tab = 'approvals' | 'create' | 'points' | 'family';
+type Tab = 'approvals' | 'create' | 'points' | 'family' | 'users';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'approvals', label: 'Aprobaciones' },
   { key: 'create', label: 'Crear' },
   { key: 'points', label: 'Puntos' },
-  { key: 'family', label: 'Familia' }
+  { key: 'family', label: 'Familia' },
+  { key: 'users', label: 'Usuarios' }
 ];
 
 export default function Manage() {
@@ -17,12 +20,12 @@ export default function Manage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-slate-800">Gestión familiar</h1>
-      <div className="flex gap-1 rounded-2xl bg-white p-1 shadow-[0_6px_24px_rgba(31,42,68,0.07)]">
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-white p-1 shadow-[0_6px_24px_rgba(31,42,68,0.07)]">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-1 rounded-lg px-2 py-2 text-xs font-semibold transition ${tab === t.key ? 'bg-blue-500 text-white' : 'text-slate-400'}`}
+            className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition ${tab === t.key ? 'bg-blue-500 text-white' : 'text-slate-400'}`}
           >
             {t.label}
           </button>
@@ -32,6 +35,7 @@ export default function Manage() {
       {tab === 'create' && <CreateTask />}
       {tab === 'points' && <MintPoints />}
       {tab === 'family' && <FamilySettings />}
+      {tab === 'users' && <UsersAdmin />}
     </div>
   );
 }
@@ -578,6 +582,192 @@ function FamilySettings() {
         {creditMsg && <p className="text-sm text-slate-500">{creditMsg}</p>}
         <Button className="w-full" disabled={creditLimit === ''} onClick={saveCreditLimit}>Establecer límite</Button>
       </Card>
+    </div>
+  );
+}
+
+// ── ABM de usuarios (miembros de la familia) ──────────────────────────────────
+function UsersAdmin() {
+  const { user } = useAuth();
+  const [members, setMembers] = useState<FamilyMemberFull[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<FamilyMemberFull | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    const list = await familyApi.listMembersFull(user.companyId);
+    setMembers(list);
+    setLoading(false);
+  }, [user]);
+  useEffect(() => { load(); }, [load]);
+
+  const toggleActive = async (m: FamilyMemberFull) => {
+    if (!user) return;
+    setBusyId(m.id);
+    try {
+      await familyApi.updateMember(m.id, { adminUserId: user.id, active: !m.active });
+      await load();
+    } catch (e) {
+      alert(e instanceof ApiError && e.body?.error === 'FAMILY_NEEDS_PARENT' ? 'Debe quedar al menos un padre/madre activo en la familia.' : 'No se pudo cambiar el estado.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-sm font-semibold text-slate-500">Miembros de la familia</h2>
+        <button onClick={() => setShowCreate(true)} className="text-xs font-bold text-blue-500">+ Nuevo miembro</button>
+      </div>
+
+      <div className="space-y-2">
+        {members.map((m) => (
+          <Card key={m.id} className={m.active ? '' : 'opacity-50'}>
+            <div className="flex items-center gap-3">
+              <Avatar name={m.name} email={m.email} avatar={m.avatar} size={40} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-800">{m.name}</p>
+                <p className="truncate text-xs text-slate-500">{m.email}</p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ${m.isParent ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'}`}>
+                {m.isParent ? 'Padre/Madre' : 'Hijo/a'}
+              </span>
+            </div>
+            {!m.active && <p className="mt-1 text-[11px] font-semibold text-rose-500">De baja — no puede iniciar sesión</p>}
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => setEditing(m)} className="flex-1 rounded-xl bg-slate-100 py-2 text-xs font-semibold text-slate-600">Editar</button>
+              {m.id !== user?.id && (
+                <button
+                  disabled={busyId === m.id}
+                  onClick={() => toggleActive(m)}
+                  className={`flex-1 rounded-xl py-2 text-xs font-semibold disabled:opacity-50 ${m.active ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}
+                >
+                  {m.active ? 'Dar de baja' : 'Reactivar'}
+                </button>
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {showCreate && <CreateMemberModal onClose={() => setShowCreate(false)} onDone={async () => { setShowCreate(false); await load(); }} />}
+      {editing && <EditMemberModal member={editing} onClose={() => setEditing(null)} onDone={async () => { setEditing(null); await load(); }} />}
+    </div>
+  );
+}
+
+function CreateMemberModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { user } = useAuth();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isParent, setIsParent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
+
+  const submit = async () => {
+    if (!user || !name.trim() || !email.trim() || password.length < 6) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      await familyApi.createMember({ adminUserId: user.id, companyId: user.companyId, name: name.trim(), email: email.trim(), password, isParent });
+      onDone();
+    } catch (e) {
+      setMsg(e instanceof ApiError && e.body?.error === 'EMAIL_TAKEN' ? 'Ese email ya está en uso.' : 'No se pudo crear el miembro.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-[32px] bg-white p-5 safe-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <h2 className="mb-4 text-lg font-extrabold text-slate-800">Nuevo miembro</h2>
+        <div className="space-y-3">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre completo" className={input} />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className={input} />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (mín. 6)" className={input} />
+          <div className="flex gap-2">
+            <button onClick={() => setIsParent(false)} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${!isParent ? 'bg-amber-400 text-slate-900' : 'bg-slate-100 text-slate-500'}`}>Hijo/a</button>
+            <button onClick={() => setIsParent(true)} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${isParent ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}>Padre/Madre</button>
+          </div>
+          {msg && <p className="text-sm text-rose-500">{msg}</p>}
+          <div className="flex gap-2">
+            <Button variant="ghost" className="flex-1" disabled={busy} onClick={onClose}>Cancelar</Button>
+            <Button className="flex-1" disabled={busy || !name.trim() || !email.trim() || password.length < 6} onClick={submit}>
+              {busy ? 'Creando…' : 'Crear'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditMemberModal({ member, onClose, onDone }: { member: FamilyMemberFull; onClose: () => void; onDone: () => void }) {
+  const { user } = useAuth();
+  const [name, setName] = useState(member.name);
+  const [email, setEmail] = useState(member.email);
+  const [isParent, setIsParent] = useState(member.isParent);
+  const [newPassword, setNewPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
+
+  const submit = async () => {
+    if (!user || !name.trim() || !email.trim()) return;
+    if (newPassword && newPassword.length < 6) return setMsg('La nueva contraseña debe tener al menos 6 caracteres.');
+    setBusy(true);
+    setMsg('');
+    try {
+      await familyApi.updateMember(member.id, {
+        adminUserId: user.id,
+        name: name.trim(),
+        email: email.trim(),
+        isParent,
+        newPassword: newPassword.trim() || undefined
+      });
+      onDone();
+    } catch (e) {
+      setMsg(
+        e instanceof ApiError && e.body?.error === 'EMAIL_TAKEN'
+          ? 'Ese email ya está en uso.'
+          : e instanceof ApiError && e.body?.error === 'FAMILY_NEEDS_PARENT'
+            ? 'Debe quedar al menos un padre/madre en la familia.'
+            : 'No se pudo guardar.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-[32px] bg-white p-5 safe-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <h2 className="mb-4 text-lg font-extrabold text-slate-800">Editar miembro</h2>
+        <div className="space-y-3">
+          <input value={name} onChange={(e) => setName(e.target.value)} className={input} placeholder="Nombre" />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={input} placeholder="Email" />
+          <div className="flex gap-2">
+            <button onClick={() => setIsParent(false)} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${!isParent ? 'bg-amber-400 text-slate-900' : 'bg-slate-100 text-slate-500'}`}>Hijo/a</button>
+            <button onClick={() => setIsParent(true)} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${isParent ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}>Padre/Madre</button>
+          </div>
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={input} placeholder="Nueva contraseña (opcional)" />
+          {msg && <p className="text-sm text-rose-500">{msg}</p>}
+          <div className="flex gap-2">
+            <Button variant="ghost" className="flex-1" disabled={busy} onClick={onClose}>Cancelar</Button>
+            <Button className="flex-1" disabled={busy || !name.trim() || !email.trim()} onClick={submit}>{busy ? 'Guardando…' : 'Guardar'}</Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

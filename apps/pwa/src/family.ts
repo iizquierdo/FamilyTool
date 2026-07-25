@@ -60,6 +60,7 @@ export interface Task {
   ownerName?: string;
   familyGoalId: string | null;
   rejectedReason: string | null;
+  selfCreated: boolean;
   subtasks?: Subtask[];
 }
 export interface FamilyGoal {
@@ -83,6 +84,15 @@ export interface FamilyMember {
   name: string;
   email: string;
   avatar: string | null;
+}
+export interface FamilyMemberFull {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string | null;
+  isParent: boolean;
+  active: boolean;
+  createdAt: string;
 }
 export interface Withdrawal {
   id: string;
@@ -157,8 +167,11 @@ export const familyApi = {
   // ── Acciones de padre / administración ──────────────────────────────────────
   createTask: (body: Record<string, unknown>) => api.post<Task>('/tasks', body),
   publishTask: (id: string, availableUntil: string | null) => api.post<Task>(`/tasks/${id}/publish`, { availableUntil }),
-  validateTask: (id: string, validatorId: string, approvedSubtaskIds?: string[]) =>
-    api.post<Task>(`/tasks/${id}/validate`, { validatorId, approvedSubtaskIds }),
+  // ── Actividad propia: el usuario la crea, se auto-asigna, y el puntaje lo define quien valida ──
+  createOwnActivity: (body: { userId: string; companyId: string; title: string; description?: string; dueDate?: string }) =>
+    api.post<Task>('/tasks/self', body),
+  validateTask: (id: string, validatorId: string, approvedSubtaskIds?: string[], awardedPoints?: number) =>
+    api.post<Task>(`/tasks/${id}/validate`, { validatorId, approvedSubtaskIds, awardedPoints }),
   rejectTask: (id: string, reason: string) => api.post<Task>(`/tasks/${id}/reject`, { reason }),
   mint: (adminUserId: string, targetUserId: string, currency: 'MONEY' | 'XP', amount: number, note?: string) =>
     api.post('/tasks/family/wallet/mint', { adminUserId, targetUserId, currency, amount, note }),
@@ -168,6 +181,11 @@ export const familyApi = {
     api.post<{ amount: number; creditUsed: number; creditLimit: number; creditAvailable: number }>('/tasks/family/wallet/credit/request', { userId, amount }),
   setCreditLimit: (adminUserId: string, companyId: string, limit: number, targetUserId?: string) =>
     api.post('/tasks/family/wallet/credit/limit', { adminUserId, companyId, limit, targetUserId }),
+
+  listMembersFull: (companyId: string) => api.get<FamilyMemberFull[]>(`/tasks/family/members?companyId=${companyId}`),
+  createMember: (body: { adminUserId: string; companyId: string; name: string; email: string; password: string; isParent: boolean }) =>
+    api.post<FamilyMemberFull>('/tasks/family/members', body),
+  updateMember: (id: string, body: Record<string, unknown>) => api.put<FamilyMemberFull>(`/tasks/family/members/${id}`, body),
   approveWithdrawal: (id: string, approverId: string) => api.post(`/tasks/family/wallet/withdrawals/${id}/approve`, { approverId }),
   rejectWithdrawal: (id: string, approverId: string, reason: string) =>
     api.post(`/tasks/family/wallet/withdrawals/${id}/reject`, { approverId, reason }),

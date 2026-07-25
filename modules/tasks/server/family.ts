@@ -165,7 +165,15 @@ const resolveUserCompanyId = async (pool: Pool, userId: string): Promise<string 
   return r.rows[0]?.companyId || null;
 };
 
+const LEGACY_PARENT_ROLES = new Set(['administrator', 'admin', 'parent', 'padre', 'madre', 'tutor']);
+const PARENT_ROLE_NAME_RE = /parent|padre|madre|tutor|adult/;
 // Un "padre" es un admin/legacy admin o un rol cuyo nombre sugiere paternidad/tutoría.
+export const computeIsParent = (role?: string | null, roleName?: string | null): boolean => {
+  const r = String(role || '').toLowerCase();
+  if (LEGACY_PARENT_ROLES.has(r)) return true;
+  return PARENT_ROLE_NAME_RE.test(String(roleName || '').toLowerCase());
+};
+
 export const isParentUser = async (pool: Pool, userId: string): Promise<boolean> => {
   const r = await pool.query(
     `SELECT u.role AS role, r.name AS "roleName"
@@ -175,10 +183,46 @@ export const isParentUser = async (pool: Pool, userId: string): Promise<boolean>
   );
   const row = r.rows[0];
   if (!row) return false;
-  const role = String(row.role || '').toLowerCase();
-  const roleName = String(row.roleName || '').toLowerCase();
-  if (['administrator', 'admin', 'parent', 'padre', 'madre', 'tutor'].includes(role)) return true;
-  return /parent|padre|madre|tutor|adult/.test(roleName);
+  return computeIsParent(row.role, row.roleName);
+};
+
+// Encuentra (o crea) un Role con permiso de lectura sobre TASKS para asignar a "hijos".
+// Reusa cualquier rol no-admin que ya tenga el permiso (p. ej. sembrado por la provisión);
+// si no existe ninguno, crea uno nuevo "Miembro" y le otorga el permiso.
+const ensureChildRoleId = async (pool: Pool): Promise<string> => {
+  const existing = await pool.query(
+    `SELECT r.id FROM "Role" r
+     JOIN "Permission" p ON p."roleId" = r.id
+     JOIN "SystemModule" m ON m.id = p."moduleId" AND m.code = 'TASKS'
+     WHERE p."canRead" = TRUE AND LOWER(r.name) NOT IN ('administrator', 'admin')
+     ORDER BY r.name ASC LIMIT 1`
+  );
+  if (existing.rows[0]?.id) return existing.rows[0].id;
+
+  const roleId = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO "Role" (id, name, description, "createdAt", "updatedAt")
+     VALUES ($1, 'Miembro', 'Miembro de familia (FamilyTool)', NOW(), NOW())`,
+    [roleId]
+  );
+  const mod = await pool.query('SELECT id FROM "SystemModule" WHERE code = $1 LIMIT 1', ['TASKS']);
+  const moduleId = mod.rows[0]?.id;
+  if (moduleId) {
+    await pool.query(
+      `INSERT INTO "Permission" (id, "roleId", "moduleId", "canRead", "canWrite", "canCreate", "canDelete", "createdAt", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, TRUE, TRUE, TRUE, TRUE, NOW(), NOW())`,
+      [roleId, moduleId]
+    );
+  }
+  return roleId;
+};
+
+// Hashing de password compatible con apps/api/src/password.ts (mismo formato scrypt$salt$hash),
+// así el login del core reconoce y verifica correctamente los usuarios creados desde acá.
+const hashPasswordForUser = (plain: string): string => {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(plain, salt, 64);
+  return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 };
 
 export const getFamilyConfig = async (pool: Pool, companyId: string) => {
@@ -602,7 +646,11 @@ export function registerFamilyRoutes(
 
       let moneyPayout = 0;
       let xpPayout = 0;
-      if (hasSubtasks) {
+      if (task.selfCreated) {
+        // Actividad auto-creada por el usuario: el puntaje no viene de la tarea,
+        // lo determina quien valida (por defecto 0).
+        xpPayout = Math.max(0, Math.floor(Number(req.body?.awardedPoints || 0)));
+      } else if (hasSubtasks) {
         if (task.taskKind === 'Paid') {
           moneyPayout = subtaskPoints;
           xpPayout = flatXp;
@@ -1402,6 +1450,156 @@ export function registerFamilyRoutes(
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to unsubscribe', details: error.message });
+    }
+  });
+
+  // ═══════════════════════ ABM de miembros de la familia (solo padres) ════════
+
+  family.get('/members', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const companyId = String(req.query.companyId || '').trim();
+      if (!companyId) return res.status(400).json({ error: 'companyId is required.' });
+      const r = await pool.query(
+        `SELECT u.id, u.email, u.name, u.avatar, u.role, u.active, u."createdAt", rl.name AS "roleName"
+         FROM "User" u LEFT JOIN "Role" rl ON rl.id = u."roleId"
+         WHERE u."companyId" = $1
+         ORDER BY u."createdAt" ASC`,
+        [companyId]
+      );
+      res.json(
+        r.rows.map((row: any) => ({
+          id: row.id,
+          email: row.email,
+          name: row.name,
+          avatar: row.avatar,
+          isParent: computeIsParent(row.role, row.roleName),
+          active: row.active !== false,
+          createdAt: row.createdAt
+        }))
+      );
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to list members', details: error.message });
+    }
+  });
+
+  family.post('/members', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const adminUserId = String(req.body?.adminUserId || '').trim();
+      const companyId = String(req.body?.companyId || '').trim();
+      const name = String(req.body?.name || '').trim();
+      const email = String(req.body?.email || '').trim().toLowerCase();
+      const password = String(req.body?.password || '');
+      const isParent = Boolean(req.body?.isParent);
+
+      if (!adminUserId || !companyId || !name || !email || !password) {
+        return res.status(400).json({ error: 'adminUserId, companyId, name, email and password are required.' });
+      }
+      if (password.length < 6) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
+      if (!(await isParentUser(pool, adminUserId))) return res.status(403).json({ error: 'Only a parent can create members.' });
+
+      const existing = await pool.query('SELECT id FROM "User" WHERE LOWER(email) = $1 LIMIT 1', [email]);
+      if (existing.rows[0]) return res.status(409).json({ error: 'EMAIL_TAKEN' });
+
+      const roleId = isParent ? null : await ensureChildRoleId(pool);
+      const legacyRole = isParent ? 'Administrator' : 'Member';
+      const parts = name.split(' ').filter(Boolean);
+      const firstName = parts.shift() || name;
+      const lastName = parts.join(' ') || null;
+      const id = crypto.randomUUID();
+
+      await pool.query(
+        `INSERT INTO "User" (id, email, name, "firstName", "lastName", password, role, "roleId", "companyId", active, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, NOW(), NOW())`,
+        [id, email, name, firstName, lastName, hashPasswordForUser(password), legacyRole, roleId, companyId]
+      );
+
+      res.status(201).json({ id, name, email, avatar: null, isParent, active: true, createdAt: new Date().toISOString() });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to create member', details: error.message });
+    }
+  });
+
+  family.put('/members/:id', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const adminUserId = String(req.body?.adminUserId || '').trim();
+      if (!(await isParentUser(pool, adminUserId))) return res.status(403).json({ error: 'Only a parent can edit members.' });
+
+      const targetId = req.params.id;
+      if (targetId === adminUserId && req.body?.active === false) {
+        return res.status(400).json({ error: 'SELF_DEACTIVATE' });
+      }
+
+      const cur = await pool.query(
+        `SELECT u.*, rl.name AS "roleName" FROM "User" u LEFT JOIN "Role" rl ON rl.id = u."roleId" WHERE u.id = $1 LIMIT 1`,
+        [targetId]
+      );
+      const current = cur.rows[0];
+      if (!current) return res.status(404).json({ error: 'Member not found' });
+
+      const wasParent = computeIsParent(current.role, current.roleName);
+      const nextIsParent = req.body?.isParent != null ? Boolean(req.body.isParent) : wasParent;
+      const nextActive = req.body?.active != null ? Boolean(req.body.active) : current.active !== false;
+
+      // Salvaguarda: la familia siempre necesita al menos un padre activo.
+      if (wasParent && (!nextIsParent || !nextActive)) {
+        const others = await pool.query(
+          `SELECT COUNT(*)::int AS c FROM "User" u LEFT JOIN "Role" rl ON rl.id = u."roleId"
+           WHERE u."companyId" = $1 AND u.id <> $2 AND u.active IS NOT FALSE
+             AND (LOWER(u.role) IN ('administrator','admin','parent','padre','madre','tutor')
+                  OR LOWER(COALESCE(rl.name, '')) ~ 'parent|padre|madre|tutor|adult')`,
+          [current.companyId, targetId]
+        );
+        if (Number(others.rows[0]?.c || 0) === 0) {
+          return res.status(400).json({ error: 'FAMILY_NEEDS_PARENT' });
+        }
+      }
+
+      const name = req.body?.name != null ? String(req.body.name).trim() : current.name;
+      const email = req.body?.email != null ? String(req.body.email).trim().toLowerCase() : current.email;
+      if (email !== current.email) {
+        const dup = await pool.query('SELECT id FROM "User" WHERE LOWER(email) = $1 AND id <> $2 LIMIT 1', [email, targetId]);
+        if (dup.rows[0]) return res.status(409).json({ error: 'EMAIL_TAKEN' });
+      }
+
+      let roleId = current.roleId;
+      let legacyRole = current.role;
+      if (req.body?.isParent != null && nextIsParent !== wasParent) {
+        if (nextIsParent) {
+          roleId = null;
+          legacyRole = 'Administrator';
+        } else {
+          roleId = await ensureChildRoleId(pool);
+          legacyRole = 'Member';
+        }
+      }
+
+      const newPassword = req.body?.newPassword ? String(req.body.newPassword) : null;
+      if (newPassword && newPassword.length < 6) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
+
+      const parts = name.split(' ').filter(Boolean);
+      const firstName = parts.shift() || name;
+      const lastName = parts.join(' ') || null;
+
+      const sets = ['name=$1', '"firstName"=$2', '"lastName"=$3', 'email=$4', 'role=$5', '"roleId"=$6', 'active=$7', '"updatedAt"=NOW()'];
+      const params: any[] = [name, firstName, lastName, email, legacyRole, roleId, nextActive];
+      let idx = params.length + 1;
+      if (newPassword) {
+        sets.push(`password=$${idx}`);
+        params.push(hashPasswordForUser(newPassword));
+        idx += 1;
+      }
+      // Al desactivar, o al resetear la contraseña, se corta la sesión activa.
+      if (!nextActive || newPassword) sets.push('"sessionToken"=NULL', '"sessionTokenExpiresAt"=NULL');
+      params.push(targetId);
+      await pool.query(`UPDATE "User" SET ${sets.join(', ')} WHERE id = $${idx}`, params);
+
+      const out = await pool.query('SELECT id, name, email, avatar, active, "createdAt" FROM "User" WHERE id = $1', [targetId]);
+      res.json({ ...out.rows[0], isParent: nextIsParent });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to update member', details: error.message });
     }
   });
 

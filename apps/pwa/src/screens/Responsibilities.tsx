@@ -19,6 +19,7 @@ export default function Responsibilities() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -48,9 +49,12 @@ export default function Responsibilities() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800">Mis responsabilidades</h1>
-        <p className="text-xs text-slate-400">Colaborar en casa suma reputación y acerca las metas familiares.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">Mis responsabilidades</h1>
+          <p className="text-xs text-slate-400">Colaborar en casa suma reputación y acerca las metas familiares.</p>
+        </div>
+        <button onClick={() => setShowCreate(true)} className="shrink-0 whitespace-nowrap text-xs font-bold text-blue-500">+ Nueva actividad</button>
       </div>
 
       {pending.length === 0 ? (
@@ -65,7 +69,11 @@ export default function Responsibilities() {
                   <button type="button" className="flex-1 text-left" onClick={() => setDetailId(t.id)}>
                     <p className="font-semibold text-slate-800">{t.title}</p>
                     <p className="mt-0.5 text-xs">
-                      <Points value={t.rewardXp} kind="xp" />
+                      {t.selfCreated && t.lifecycle !== 'finalizada' ? (
+                        <span className="text-slate-400">Puntos a definir por el adulto</span>
+                      ) : (
+                        <Points value={t.rewardXp} kind="xp" />
+                      )}
                       {t.dueDate && <span className={overdue ? 'text-rose-500' : 'text-slate-400'}> · vence {new Date(t.dueDate).toLocaleDateString('es-AR')}</span>}
                     </p>
                     {t.rejectedReason && <p className="mt-1 text-xs text-rose-500">Rechazada: {t.rejectedReason}</p>}
@@ -113,6 +121,60 @@ export default function Responsibilities() {
           onChanged={load}
         />
       )}
+
+      {showCreate && (
+        <CreateOwnActivityModal
+          onClose={() => setShowCreate(false)}
+          onDone={async () => {
+            setShowCreate(false);
+            await load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Crear actividad propia: el usuario la crea, se auto-asigna y sigue el mismo ─
+// proceso de aprobación; el puntaje lo decide el adulto al validar (por defecto 0).
+function CreateOwnActivityModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { user } = useAuth();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
+
+  const submit = async () => {
+    if (!user || !title.trim()) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      await familyApi.createOwnActivity({ userId: user.id, companyId: user.companyId, title: title.trim(), description: description.trim() || undefined });
+      onDone();
+    } catch {
+      setMsg('No se pudo crear la actividad.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-[32px] bg-white p-5 safe-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <h2 className="mb-1 text-lg font-extrabold text-slate-800">Nueva actividad</h2>
+        <p className="mb-4 text-xs text-slate-500">Se auto-asigna a vos. El adulto la valida y decide cuántos puntos vale (por defecto 0).</p>
+        <div className="space-y-3">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="¿Qué vas a hacer?" className={input} />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción (opcional)" className={input} rows={2} />
+          {msg && <p className="text-sm text-rose-500">{msg}</p>}
+          <div className="flex gap-2">
+            <Button variant="ghost" className="flex-1" disabled={busy} onClick={onClose}>Cancelar</Button>
+            <Button className="flex-1" disabled={busy || !title.trim()} onClick={submit}>{busy ? 'Creando…' : 'Crear'}</Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

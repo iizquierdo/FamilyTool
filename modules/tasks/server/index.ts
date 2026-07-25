@@ -341,6 +341,39 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
     }
   });
 
+  // FamilyTool: un usuario crea su propia actividad no paga, auto-asignada.
+  // Nace en 'doing' (ya tomada por él mismo) y sin puntos: el padre/madre los
+  // determina al validar (por defecto 0). No admite subtareas ni pago en $.
+  router.post('/self', async (req, res) => {
+    try {
+      if (!(await ensureActive())) return res.status(409).json({ error: 'Task module is not active.' });
+
+      const userId = String(req.body?.userId || '').trim();
+      const companyId = String(req.body?.companyId || '').trim();
+      const title = String(req.body?.title || '').trim();
+
+      if (!userId || !companyId || !title) {
+        return res.status(400).json({ error: 'userId, companyId and title are required.' });
+      }
+
+      const code = await nextTaskCode(companyId);
+      const id = crypto.randomUUID();
+
+      await pool.query(
+        `INSERT INTO "Task" (id, code, title, description, status, priority, visibility, "companyId", "createdById", "ownerId",
+           "taskKind", "rewardPoints", "rewardXp", lifecycle, "takenById", "takenAt", "selfCreated", "dueDate", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, 'Todo', 'Medium', 'Private', $5, $6, $6,
+           'Responsibility', 0, 0, 'doing', $6, NOW(), TRUE, $7::timestamp, NOW(), NOW())`,
+        [id, code, title, String(req.body?.description || '').trim() || null, companyId, userId, toNullableIsoDate(req.body?.dueDate)]
+      );
+
+      const task = await getTaskById(id);
+      res.status(201).json(task);
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to create activity', details: error.message });
+    }
+  });
+
   router.put('/:id', async (req, res) => {
     try {
       if (!(await ensureActive())) return res.status(409).json({ error: 'Task module is not active.' });
