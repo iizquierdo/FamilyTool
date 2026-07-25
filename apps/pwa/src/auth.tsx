@@ -5,6 +5,7 @@ interface AuthState {
   user: SessionUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  registerTenant: (data: { familyName: string; firstName: string; lastName: string; email: string; password: string }) => Promise<void>;
   logout: () => void;
   patchUser: (partial: Partial<SessionUser>) => void;
 }
@@ -49,6 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   };
 
+  // Alta autoservicio: crea un tenant (familia) nuevo y deja al usuario como su admin.
+  const registerTenant = async (data: { familyName: string; firstName: string; lastName: string; email: string; password: string }) => {
+    const res = await api.post<{ token: string; user: SessionUser }>('/auth/register-tenant', data);
+    setToken(res.token);
+    setStoredUser(res.user);
+    setUser(res.user);
+  };
+
   const logout = () => {
     api.post('/auth/logout').catch(() => {});
     setToken(null);
@@ -65,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  return <AuthContext.Provider value={{ user, loading, login, logout, patchUser }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, registerTenant, logout, patchUser }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

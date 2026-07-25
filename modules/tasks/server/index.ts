@@ -391,6 +391,12 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
 
       const shareWith = normalizeTaskShares(req.body?.shareWith || existing.sharedUserIds || []);
 
+      // FamilyTool: recompensa y meta son opcionales en la edición — si no vienen, se conservan.
+      const rewardPoints = req.body?.rewardPoints != null ? Math.max(0, Math.floor(Number(req.body.rewardPoints) || 0)) : existing.rewardPoints;
+      const rewardXp = req.body?.rewardXp != null ? Math.max(0, Math.floor(Number(req.body.rewardXp) || 0)) : existing.rewardXp;
+      const familyGoalId = req.body?.familyGoalId !== undefined ? (String(req.body.familyGoalId || '').trim() || null) : existing.familyGoalId;
+      const availableUntil = req.body?.availableUntil !== undefined ? toNullableIsoDate(req.body.availableUntil) : existing.availableUntil;
+
       await pool.query(
         `UPDATE "Task"
          SET title = $1,
@@ -403,8 +409,12 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
              "completedAt" = $8::timestamp,
              visibility = $9,
              "ownerId" = $10,
+             "rewardPoints" = $11,
+             "rewardXp" = $12,
+             "familyGoalId" = $13,
+             "availableUntil" = $14::timestamp,
              "updatedAt" = NOW()
-         WHERE id = $11`,
+         WHERE id = $15`,
         [
           title,
           String(req.body?.description || '').trim() || null,
@@ -416,6 +426,10 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
           toNullableIsoDate(req.body?.completedAt),
           shareWith.length > 0 ? 'Shared' : 'Private',
           ownerId,
+          rewardPoints,
+          rewardXp,
+          familyGoalId,
+          availableUntil,
           taskId
         ]
       );

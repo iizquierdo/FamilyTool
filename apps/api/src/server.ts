@@ -2328,6 +2328,70 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
+// FamilyTool: alta autoservicio — crea una Organization + Company (nuevo tenant)
+// y un usuario Administrator de esa Company. A diferencia de /api/auth/register
+// (que suma un usuario a una company existente), este SIEMPRE crea tenant nuevo.
+app.post('/api/auth/register-tenant', async (req, res) => {
+    try {
+        await ensureUserColumns();
+        const familyName = String(req.body?.familyName || '').trim();
+        const firstName = String(req.body?.firstName || '').trim();
+        const lastName = String(req.body?.lastName || '').trim();
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const password = String(req.body?.password || '');
+
+        if (!familyName || !firstName || !lastName || !email || !password) {
+            return res.status(400).json({ error: 'familyName, firstName, lastName, email and password are required.' });
+        }
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ error: 'Email is invalid.' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+        }
+
+        const existing = await pool.query('SELECT id FROM "User" WHERE LOWER(email) = $1 LIMIT 1', [email]);
+        if (existing.rows[0]) {
+            return res.status(409).json({ error: 'A user with this email already exists.' });
+        }
+
+        const createdUserId: string = await prisma.$transaction(async (tx: any) => {
+            const plan = await tx.subscriptionPlan.findUnique({ where: { code: 'FREE' } });
+            if (!plan) {
+                throw new Error('Default FREE subscription plan is missing. Run database migrations.');
+            }
+
+            const org = await tx.organization.create({ data: { name: familyName, subscriptionPlanId: plan.id } });
+            const company = await tx.company.create({ data: { name: familyName, organizationId: org.id } });
+            const adminRole = await tx.role.findUnique({ where: { name: 'Administrator' } });
+
+            const user = await tx.user.create({
+                data: {
+                    firstName,
+                    lastName,
+                    name: [firstName, lastName].filter(Boolean).join(' '),
+                    email,
+                    password: hashPassword(password),
+                    role: 'Administrator',
+                    roleId: adminRole?.id ?? null,
+                    companyId: company.id
+                }
+            });
+
+            return user.id;
+        });
+
+        const token = createSessionToken();
+        await pool.query('UPDATE "User" SET "sessionToken" = $1, "sessionTokenExpiresAt" = $2, "updatedAt" = NOW() WHERE id = $3', [token, sessionExpiry(), createdUserId]);
+
+        const user = await getNormalizedUserById(createdUserId);
+        res.status(201).json({ token, user });
+    } catch (error: any) {
+        console.error('Error in POST /api/auth/register-tenant:', error);
+        res.status(500).json({ error: 'Failed to register', details: error.message });
+    }
+});
+
 app.post('/api/auth/forgot-password', async (req, res) => {
     try {
         await ensureUserColumns();

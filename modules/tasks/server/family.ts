@@ -1603,5 +1603,84 @@ export function registerFamilyRoutes(
     }
   });
 
+  // ═══════════════════════ Dashboard de indicadores (solo padres) ═════════════
+  family.get('/stats', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const companyId = String(req.query.companyId || '').trim();
+      if (!companyId) return res.status(400).json({ error: 'companyId is required.' });
+
+      const [pointsGivenR, topEarnersR, mostTasksR, pendingTasksR, pendingWithdrawalsR, byLifecycleR, overdueR, totalsR, goalsR] = await Promise.all([
+        pool.query(
+          `SELECT currency,
+             COALESCE(SUM(amount) FILTER (WHERE "createdAt" >= date_trunc('month', NOW())), 0)::int AS month,
+             COALESCE(SUM(amount) FILTER (WHERE "createdAt" >= date_trunc('year', NOW())), 0)::int AS year
+           FROM "WalletLedger"
+           WHERE "companyId" = $1 AND amount > 0 AND reason IN ('task_reward', 'mint')
+           GROUP BY currency`,
+          [companyId]
+        ),
+        pool.query(
+          `SELECT wl."userId", COALESCE(u.name, u.email) AS "userName", u.avatar,
+             COALESCE(SUM(wl.amount) FILTER (WHERE wl.currency = 'MONEY'), 0)::int AS money,
+             COALESCE(SUM(wl.amount) FILTER (WHERE wl.currency = 'XP'), 0)::int AS xp
+           FROM "WalletLedger" wl JOIN "User" u ON u.id = wl."userId"
+           WHERE wl."companyId" = $1 AND wl.amount > 0 AND wl.reason IN ('task_reward', 'mint')
+           GROUP BY wl."userId", u.name, u.email, u.avatar
+           ORDER BY (money + xp) DESC
+           LIMIT 5`,
+          [companyId]
+        ),
+        pool.query(
+          `SELECT COALESCE(t."takenById", t."ownerId") AS "userId", COALESCE(u.name, u.email) AS "userName", u.avatar, COUNT(*)::int AS count
+           FROM "Task" t JOIN "User" u ON u.id = COALESCE(t."takenById", t."ownerId")
+           WHERE t."companyId" = $1 AND t.lifecycle = 'finalizada'
+           GROUP BY COALESCE(t."takenById", t."ownerId"), u.name, u.email, u.avatar
+           ORDER BY count DESC
+           LIMIT 5`,
+          [companyId]
+        ),
+        pool.query(`SELECT COUNT(*)::int AS c FROM "Task" WHERE "companyId" = $1 AND lifecycle = 'done'`, [companyId]),
+        pool.query(`SELECT COUNT(*)::int AS c FROM "Withdrawal" WHERE "companyId" = $1 AND status = 'pending'`, [companyId]),
+        pool.query(`SELECT lifecycle, COUNT(*)::int AS c FROM "Task" WHERE "companyId" = $1 GROUP BY lifecycle`, [companyId]),
+        pool.query(
+          `SELECT COUNT(*)::int AS c FROM "Task" WHERE "companyId" = $1 AND lifecycle <> 'finalizada' AND "dueDate" IS NOT NULL AND "dueDate" < NOW()`,
+          [companyId]
+        ),
+        pool.query(`SELECT COUNT(*)::int AS c FROM "Task" WHERE "companyId" = $1`, [companyId]),
+        pool.query(
+          `SELECT id, title, "currentXp", "targetXp" FROM "FamilyGoal" WHERE "companyId" = $1 AND status = 'Active' ORDER BY "createdAt" DESC`,
+          [companyId]
+        )
+      ]);
+
+      const pointsGiven = { month: { money: 0, xp: 0 }, year: { money: 0, xp: 0 } };
+      for (const row of pointsGivenR.rows) {
+        const bucket = row.currency === 'XP' ? 'xp' : 'money';
+        pointsGiven.month[bucket] = row.month;
+        pointsGiven.year[bucket] = row.year;
+      }
+
+      const byLifecycle: Record<string, number> = { creada: 0, en_espera: 0, doing: 0, done: 0, finalizada: 0 };
+      for (const row of byLifecycleR.rows) byLifecycle[row.lifecycle] = row.c;
+
+      const totalTasks = totalsR.rows[0]?.c || 0;
+
+      res.json({
+        pointsGiven,
+        topEarners: topEarnersR.rows,
+        mostTasksTaken: mostTasksR.rows,
+        pendingApprovals: { tasks: pendingTasksR.rows[0]?.c || 0, withdrawals: pendingWithdrawalsR.rows[0]?.c || 0 },
+        tasksByLifecycle: byLifecycle,
+        totalTasks,
+        finalizedTasks: byLifecycle.finalizada,
+        overdueTasks: overdueR.rows[0]?.c || 0,
+        goals: goalsR.rows
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to load stats', details: error.message });
+    }
+  });
+
   router.use('/family', family);
 }

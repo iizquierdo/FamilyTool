@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../auth';
-import { familyApi, familyRecurrences, humanizeRrule, type Task, type Withdrawal, type FamilyMember, type FamilyMemberFull, type FamilyGoal, type FamilyConfig, type Recurrence } from '../family';
+import { familyApi, familyRecurrences, humanizeRrule, type Task, type Withdrawal, type FamilyMember, type FamilyMemberFull, type FamilyGoal, type FamilyConfig, type Recurrence, type FamilyStats } from '../family';
 import { ApiError } from '../api';
 import { Card, Button, Spinner, Points, EmptyState } from '../ui';
 import ValidateModal from '../components/ValidateModal';
 import Avatar from '../components/Avatar';
 
-type Tab = 'approvals' | 'create' | 'points' | 'family' | 'users';
+type Tab = 'dashboard' | 'approvals' | 'create' | 'points' | 'family' | 'users';
 const TABS: { key: Tab; label: string }[] = [
+  { key: 'dashboard', label: 'Panel' },
   { key: 'approvals', label: 'Aprobaciones' },
   { key: 'create', label: 'Crear' },
   { key: 'points', label: 'Puntos' },
@@ -16,7 +18,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function Manage() {
-  const [tab, setTab] = useState<Tab>('approvals');
+  const [tab, setTab] = useState<Tab>('dashboard');
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-slate-800">Gestión familiar</h1>
@@ -31,11 +33,145 @@ export default function Manage() {
           </button>
         ))}
       </div>
+      {tab === 'dashboard' && <Dashboard />}
       {tab === 'approvals' && <Approvals />}
       {tab === 'create' && <CreateTask />}
       {tab === 'points' && <MintPoints />}
       {tab === 'family' && <FamilySettings />}
       {tab === 'users' && <UsersAdmin />}
+    </div>
+  );
+}
+
+// ── Panel: indicadores clave para el administrador ─────────────────────────────
+function Dashboard() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<FamilyStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    familyApi.stats(user.companyId).then(setStats).finally(() => setLoading(false));
+  }, [user]);
+
+  if (loading || !stats) return <Spinner />;
+
+  const tile = (label: string, value: string | number, accent = 'text-slate-800') => (
+    <Card className="!p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-1 text-xl font-extrabold ${accent}`}>{value}</p>
+    </Card>
+  );
+
+  const earnersData = stats.topEarners.map((e) => ({ name: e.userName.split(' ')[0], total: e.money + e.xp }));
+  const tasksData = stats.mostTasksTaken.map((t) => ({ name: t.userName.split(' ')[0], count: t.count }));
+  const COLORS = ['#818cf8', '#facc15', '#34d399', '#f472b6', '#60a5fa'];
+
+  return (
+    <div className="space-y-5">
+      {(stats.pendingApprovals.tasks > 0 || stats.pendingApprovals.withdrawals > 0) && (
+        <Card className="border-amber-300 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-700">
+            ⚠️ Tenés {stats.pendingApprovals.tasks} tarea{stats.pendingApprovals.tasks === 1 ? '' : 's'} y {stats.pendingApprovals.withdrawals} retiro
+            {stats.pendingApprovals.withdrawals === 1 ? '' : 's'} esperando aprobación.
+          </p>
+        </Card>
+      )}
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-slate-500">Puntos otorgados este mes</h2>
+        <div className="grid grid-cols-2 gap-2">
+          {tile('Puntos $', stats.pointsGiven.month.money, 'text-amber-500')}
+          {tile('XP', stats.pointsGiven.month.xp, 'text-indigo-500')}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-slate-500">Puntos otorgados este año</h2>
+        <div className="grid grid-cols-2 gap-2">
+          {tile('Puntos $', stats.pointsGiven.year.money, 'text-amber-500')}
+          {tile('XP', stats.pointsGiven.year.xp, 'text-indigo-500')}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {tile('Tareas completadas', `${stats.finalizedTasks}/${stats.totalTasks}`)}
+        {tile('Tareas vencidas', stats.overdueTasks, stats.overdueTasks > 0 ? 'text-rose-500' : 'text-slate-800')}
+      </div>
+
+      {stats.topEarners.length > 0 && (
+        <Card>
+          <h2 className="mb-2 text-sm font-semibold text-slate-500">🏆 Quién lleva más puntos</h2>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={earnersData} layout="vertical" margin={{ left: 4, right: 12 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Bar dataKey="total" radius={[0, 8, 8, 0]}>
+                  {earnersData.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      {stats.mostTasksTaken.length > 0 && (
+        <Card>
+          <h2 className="mb-2 text-sm font-semibold text-slate-500">✅ Quién completó más tareas</h2>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={tasksData} layout="vertical" margin={{ left: 4, right: 12 }}>
+                <XAxis type="number" hide allowDecimals={false} />
+                <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Bar dataKey="count" radius={[0, 8, 8, 0]}>
+                  {tasksData.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <h2 className="mb-2 text-sm font-semibold text-slate-500">Estado de las tareas</h2>
+        <div className="space-y-1.5">
+          {([
+            ['creada', 'Sin publicar'],
+            ['en_espera', 'Disponibles'],
+            ['doing', 'En curso'],
+            ['done', 'Por validar'],
+            ['finalizada', 'Completadas']
+          ] as const).map(([key, label]) => (
+            <div key={key} className="flex items-center justify-between text-sm">
+              <span className="text-slate-600">{label}</span>
+              <span className="font-semibold text-slate-800">{stats.tasksByLifecycle[key] || 0}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {stats.goals.length > 0 && (
+        <Card>
+          <h2 className="mb-2 text-sm font-semibold text-slate-500">🎯 Metas activas</h2>
+          <div className="space-y-3">
+            {stats.goals.map((g) => {
+              const pct = g.targetXp > 0 ? Math.min(100, Math.round((g.currentXp / g.targetXp) * 100)) : 0;
+              return (
+                <div key={g.id}>
+                  <div className="mb-1 flex justify-between text-xs text-slate-600">
+                    <span>{g.title}</span>
+                    <span className="font-semibold text-blue-500">{pct}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-amber-300" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
@@ -153,6 +289,8 @@ function CreateTask() {
   const { user } = useAuth();
   const members = useMembers();
   const [goals, setGoals] = useState<FamilyGoal[]>([]);
+  const [activeTasks, setActiveTasks] = useState<Task[]>([]);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [kind, setKind] = useState<'Paid' | 'Responsibility'>('Responsibility');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -181,9 +319,16 @@ function CreateTask() {
     }
   };
 
+  const loadActiveTasks = useCallback(async () => {
+    if (!user) return;
+    const all = await familyApi.tasks({ companyId: user.companyId });
+    setActiveTasks(all.filter((t) => t.lifecycle !== 'finalizada'));
+  }, [user]);
+
   useEffect(() => {
     if (user) familyApi.goals(user.companyId).then(setGoals).catch(() => {});
-  }, [user]);
+    loadActiveTasks();
+  }, [user, loadActiveTasks]);
 
   const submit = async () => {
     if (!user || !title.trim()) return;
@@ -242,6 +387,7 @@ function CreateTask() {
       await familyApi.publishTask(task.id, availableUntil ? new Date(availableUntil).toISOString() : null);
       setMsg('✅ Tarea creada y publicada.');
       setTitle(''); setDescription(''); setRewardPoints(''); setRewardXp(''); setAvailableUntil(''); setDueDate(''); setGoalId(''); setSubs([]);
+      await loadActiveTasks();
     } catch {
       setMsg('No se pudo crear la tarea.');
     } finally {
@@ -252,6 +398,7 @@ function CreateTask() {
   const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
 
   return (
+    <>
     <Card className="space-y-3">
       <div className="flex gap-2">
         <button onClick={() => setKind('Responsibility')} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${kind === 'Responsibility' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
@@ -378,6 +525,117 @@ function CreateTask() {
         {busy ? 'Creando…' : repeat !== 'none' ? 'Crear tarea recurrente' : 'Crear y publicar'}
       </Button>
     </Card>
+
+      {activeTasks.length > 0 && (
+        <Card className="space-y-2">
+          <h2 className="text-sm font-semibold text-slate-500">Tareas activas</h2>
+          {activeTasks.map((t) => (
+            <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-slate-700">{t.title}</p>
+                <p className="text-xs text-slate-400">
+                  {t.taskKind === 'Paid' ? `${t.rewardPoints} pts` : `${t.rewardXp} XP`} · {t.ownerName || 'sin asignar'}
+                </p>
+              </div>
+              <button onClick={() => setEditingTask(t)} className="shrink-0 text-xs font-semibold text-blue-500">Editar</button>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          goals={goals}
+          onClose={() => setEditingTask(null)}
+          onDone={async () => { setEditingTask(null); await loadActiveTasks(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function EditTaskModal({ task, goals, onClose, onDone }: { task: Task; goals: FamilyGoal[]; onClose: () => void; onDone: () => void }) {
+  const members = useMembers();
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description || '');
+  const [rewardPoints, setRewardPoints] = useState(String(task.rewardPoints));
+  const [rewardXp, setRewardXp] = useState(String(task.rewardXp));
+  const [ownerId, setOwnerId] = useState(task.ownerId);
+  const [dueDate, setDueDate] = useState(task.dueDate ? task.dueDate.slice(0, 16) : '');
+  const [goalId, setGoalId] = useState(task.familyGoalId || '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const isPaid = task.taskKind === 'Paid';
+  const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      await familyApi.updateTask(task.id, {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        ownerId: ownerId || task.ownerId,
+        rewardPoints: isPaid ? Math.max(0, Math.floor(Number(rewardPoints) || 0)) : 0,
+        rewardXp: Math.max(0, Math.floor(Number(rewardXp) || 0)),
+        familyGoalId: goalId || null,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null
+      });
+      onDone();
+    } catch {
+      setMsg('No se pudo guardar.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-[32px] bg-white p-5 safe-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <h2 className="mb-4 text-lg font-extrabold text-slate-800">Editar tarea</h2>
+        <div className="space-y-3">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título" className={input} />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción (opcional)" className={input} rows={2} />
+          {isPaid && (
+            <label className="block text-xs text-slate-400">
+              Puntos $ (recompensa)
+              <input type="number" inputMode="numeric" value={rewardPoints} onChange={(e) => setRewardPoints(e.target.value)} className={input + ' mt-1'} />
+            </label>
+          )}
+          <label className="block text-xs text-slate-400">
+            Reputación XP
+            <input type="number" inputMode="numeric" value={rewardXp} onChange={(e) => setRewardXp(e.target.value)} className={input + ' mt-1'} />
+          </label>
+          <label className="block text-xs text-slate-400">
+            Asignar a
+            <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} className={input + ' mt-1'}>
+              {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+            </select>
+          </label>
+          <label className="block text-xs text-slate-400">
+            Vence (opcional)
+            <input type="datetime-local" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={input + ' mt-1'} />
+          </label>
+          {goals.length > 0 && (
+            <label className="block text-xs text-slate-400">
+              Aporta a meta (opcional)
+              <select value={goalId} onChange={(e) => setGoalId(e.target.value)} className={input + ' mt-1'}>
+                <option value="">— Ninguna —</option>
+                {goals.map((g) => (<option key={g.id} value={g.id}>{g.title}</option>))}
+              </select>
+            </label>
+          )}
+          {msg && <p className="text-sm text-rose-500">{msg}</p>}
+          <div className="flex gap-2">
+            <Button variant="ghost" className="flex-1" disabled={busy} onClick={onClose}>Cancelar</Button>
+            <Button className="flex-1" disabled={busy || !title.trim()} onClick={submit}>{busy ? 'Guardando…' : 'Guardar'}</Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -454,6 +712,7 @@ function FamilySettings() {
   const [msg, setMsg] = useState('');
   const [goalTitle, setGoalTitle] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
+  const [editingGoal, setEditingGoal] = useState<FamilyGoal | null>(null);
   const [recs, setRecs] = useState<Recurrence[]>([]);
   const members = useMembers();
   const [creditLimit, setCreditLimit] = useState('');
@@ -536,13 +795,24 @@ function FamilySettings() {
         {goals.map((g) => (
           <div key={g.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
             <span className="text-slate-700">{g.title} <span className="text-xs text-slate-500">({g.currentXp}/{g.targetXp} XP)</span></span>
-            <button onClick={async () => { await familyApi.deleteGoal(g.id); await load(); }} className="text-xs text-rose-500">Borrar</button>
+            <div className="flex shrink-0 gap-3">
+              <button onClick={() => setEditingGoal(g)} className="text-xs font-semibold text-blue-500">Editar</button>
+              <button onClick={async () => { await familyApi.deleteGoal(g.id); await load(); }} className="text-xs text-rose-500">Borrar</button>
+            </div>
           </div>
         ))}
         <input value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} placeholder="Nueva meta (ej: Vacaciones)" className={input} />
         <input type="number" inputMode="numeric" value={goalTarget} onChange={(e) => setGoalTarget(e.target.value)} placeholder="XP objetivo" className={input} />
         <Button variant="ghost" className="w-full" disabled={!goalTitle.trim()} onClick={addGoal}>Agregar meta</Button>
       </Card>
+
+      {editingGoal && (
+        <EditGoalModal
+          goal={editingGoal}
+          onClose={() => setEditingGoal(null)}
+          onDone={async () => { setEditingGoal(null); await load(); }}
+        />
+      )}
 
       <Card className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-500">Tareas recurrentes 🔁</h2>
@@ -582,6 +852,60 @@ function FamilySettings() {
         {creditMsg && <p className="text-sm text-slate-500">{creditMsg}</p>}
         <Button className="w-full" disabled={creditLimit === ''} onClick={saveCreditLimit}>Establecer límite</Button>
       </Card>
+    </div>
+  );
+}
+
+function EditGoalModal({ goal, onClose, onDone }: { goal: FamilyGoal; onClose: () => void; onDone: () => void }) {
+  const [title, setTitle] = useState(goal.title);
+  const [description, setDescription] = useState(goal.description || '');
+  const [targetXp, setTargetXp] = useState(String(goal.targetXp));
+  const [status, setStatus] = useState(goal.status);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      await familyApi.updateGoal(goal.id, { title: title.trim(), description: description.trim() || undefined, targetXp: Math.max(0, Math.floor(Number(targetXp) || 0)), status });
+      onDone();
+    } catch {
+      setMsg('No se pudo guardar.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-[32px] bg-white p-5 safe-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <h2 className="mb-4 text-lg font-extrabold text-slate-800">Editar meta</h2>
+        <div className="space-y-3">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título" className={input} />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción (opcional)" className={input} rows={2} />
+          <label className="block text-xs text-slate-400">
+            XP objetivo
+            <input type="number" inputMode="numeric" value={targetXp} onChange={(e) => setTargetXp(e.target.value)} className={input + ' mt-1'} />
+          </label>
+          <label className="block text-xs text-slate-400">
+            Estado
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className={input + ' mt-1'}>
+              <option value="Active">Activa</option>
+              <option value="Completed">Completada</option>
+              <option value="Archived">Archivada</option>
+            </select>
+          </label>
+          {msg && <p className="text-sm text-rose-500">{msg}</p>}
+          <div className="flex gap-2">
+            <Button variant="ghost" className="flex-1" disabled={busy} onClick={onClose}>Cancelar</Button>
+            <Button className="flex-1" disabled={busy || !title.trim()} onClick={submit}>{busy ? 'Guardando…' : 'Guardar'}</Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

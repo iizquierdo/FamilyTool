@@ -85,6 +85,17 @@ export interface FamilyMember {
   email: string;
   avatar: string | null;
 }
+export interface FamilyStats {
+  pointsGiven: { month: { money: number; xp: number }; year: { money: number; xp: number } };
+  topEarners: { userId: string; userName: string; avatar: string | null; money: number; xp: number }[];
+  mostTasksTaken: { userId: string; userName: string; avatar: string | null; count: number }[];
+  pendingApprovals: { tasks: number; withdrawals: number };
+  tasksByLifecycle: Record<'creada' | 'en_espera' | 'doing' | 'done' | 'finalizada', number>;
+  totalTasks: number;
+  finalizedTasks: number;
+  overdueTasks: number;
+  goals: { id: string; title: string; currentXp: number; targetXp: number }[];
+}
 export interface FamilyMemberFull {
   id: string;
   name: string;
@@ -166,6 +177,7 @@ export const familyApi = {
 
   // ── Acciones de padre / administración ──────────────────────────────────────
   createTask: (body: Record<string, unknown>) => api.post<Task>('/tasks', body),
+  updateTask: (id: string, body: Record<string, unknown>) => api.put<Task>(`/tasks/${id}`, body),
   publishTask: (id: string, availableUntil: string | null) => api.post<Task>(`/tasks/${id}/publish`, { availableUntil }),
   // ── Actividad propia: el usuario la crea, se auto-asigna, y el puntaje lo define quien valida ──
   createOwnActivity: (body: { userId: string; companyId: string; title: string; description?: string; dueDate?: string }) =>
@@ -181,6 +193,8 @@ export const familyApi = {
     api.post<{ amount: number; creditUsed: number; creditLimit: number; creditAvailable: number }>('/tasks/family/wallet/credit/request', { userId, amount }),
   setCreditLimit: (adminUserId: string, companyId: string, limit: number, targetUserId?: string) =>
     api.post('/tasks/family/wallet/credit/limit', { adminUserId, companyId, limit, targetUserId }),
+
+  stats: (companyId: string) => api.get<FamilyStats>(`/tasks/family/stats?companyId=${companyId}`),
 
   listMembersFull: (companyId: string) => api.get<FamilyMemberFull[]>(`/tasks/family/members?companyId=${companyId}`),
   createMember: (body: { adminUserId: string; companyId: string; name: string; email: string; password: string; isParent: boolean }) =>
