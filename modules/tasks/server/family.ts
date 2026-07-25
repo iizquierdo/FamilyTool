@@ -1627,7 +1627,7 @@ export function registerFamilyRoutes(
            FROM "WalletLedger" wl JOIN "User" u ON u.id = wl."userId"
            WHERE wl."companyId" = $1 AND wl.amount > 0 AND wl.reason IN ('task_reward', 'mint')
            GROUP BY wl."userId", u.name, u.email, u.avatar
-           ORDER BY (money + xp) DESC
+           ORDER BY (COALESCE(SUM(wl.amount) FILTER (WHERE wl.currency = 'MONEY'), 0) + COALESCE(SUM(wl.amount) FILTER (WHERE wl.currency = 'XP'), 0)) DESC
            LIMIT 5`,
           [companyId]
         ),
