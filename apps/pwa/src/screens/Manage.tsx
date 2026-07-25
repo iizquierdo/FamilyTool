@@ -377,28 +377,38 @@ function CreateTask() {
   );
 }
 
-// ── Cargar puntos (mint) ──────────────────────────────────────────────────────
+// ── Cargar / descontar puntos ─────────────────────────────────────────────────
 function MintPoints() {
   const { user } = useAuth();
   const members = useMembers();
+  const [mode, setMode] = useState<'add' | 'deduct'>('add');
   const [target, setTarget] = useState('');
   const [currency, setCurrency] = useState<'MONEY' | 'XP'>('MONEY');
   const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
   const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
+  const unit = currency === 'XP' ? 'XP' : 'pts';
+  const canSubmit = target && Number(amount) > 0 && (mode === 'add' || reason.trim());
 
   const submit = async () => {
-    if (!user || !target || Number(amount) <= 0) return;
+    if (!user || !canSubmit) return;
     setBusy(true);
     setMsg('');
     try {
-      await familyApi.mint(user.id, target, currency, Math.floor(Number(amount)));
-      setMsg('✅ Puntos cargados.');
+      if (mode === 'add') {
+        await familyApi.mint(user.id, target, currency, Math.floor(Number(amount)), reason.trim() || undefined);
+        setMsg('✅ Puntos cargados.');
+      } else {
+        const r = await familyApi.penalty(user.id, target, currency, Math.floor(Number(amount)), reason.trim());
+        setMsg(`✅ Descontados ${r.deducted} ${unit}${r.deducted < r.requested ? ' (no se pudo bajar de 0)' : ''}.`);
+      }
       setAmount('');
+      setReason('');
     } catch {
-      setMsg('No se pudo cargar.');
+      setMsg('No se pudo aplicar.');
     } finally {
       setBusy(false);
     }
@@ -406,7 +416,13 @@ function MintPoints() {
 
   return (
     <Card className="space-y-3">
-      <p className="text-xs text-slate-400">Cargá puntos a un miembro de la familia (emisión).</p>
+      <div className="flex gap-2">
+        <button onClick={() => setMode('add')} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${mode === 'add' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>➕ Cargar</button>
+        <button onClick={() => setMode('deduct')} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${mode === 'deduct' ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500'}`}>➖ Descontar</button>
+      </div>
+      <p className="text-xs text-slate-400">
+        {mode === 'add' ? 'Cargá puntos a un miembro (emisión).' : 'Descontá puntos por una situación familiar. No baja de 0.'}
+      </p>
       <select value={target} onChange={(e) => setTarget(e.target.value)} className={input}>
         <option value="">— Elegir miembro —</option>
         {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
@@ -416,8 +432,11 @@ function MintPoints() {
         <button onClick={() => setCurrency('XP')} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${currency === 'XP' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>Reputación XP</button>
       </div>
       <input type="number" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Cantidad" className={input} />
+      <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'deduct' ? 'Motivo (ej: dejó la ropa tirada)' : 'Nota (opcional)'} className={input} />
       {msg && <p className="text-sm text-slate-500">{msg}</p>}
-      <Button variant="accent" className="w-full" disabled={busy || !target || Number(amount) <= 0} onClick={submit}>Cargar puntos</Button>
+      <Button variant={mode === 'add' ? 'accent' : 'danger'} className="w-full" disabled={busy || !canSubmit} onClick={submit}>
+        {mode === 'add' ? 'Cargar puntos' : 'Descontar puntos'}
+      </Button>
     </Card>
   );
 }
@@ -432,6 +451,10 @@ function FamilySettings() {
   const [goalTitle, setGoalTitle] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
   const [recs, setRecs] = useState<Recurrence[]>([]);
+  const members = useMembers();
+  const [creditLimit, setCreditLimit] = useState('');
+  const [creditTarget, setCreditTarget] = useState('');
+  const [creditMsg, setCreditMsg] = useState('');
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -467,6 +490,17 @@ function FamilySettings() {
     await familyApi.createGoal({ companyId: user.companyId, title: goalTitle.trim(), targetXp: Math.floor(Number(goalTarget) || 0), createdById: user.id });
     setGoalTitle(''); setGoalTarget('');
     await load();
+  };
+
+  const saveCreditLimit = async () => {
+    if (!user || creditLimit === '') return;
+    setCreditMsg('');
+    try {
+      await familyApi.setCreditLimit(user.id, user.companyId, Math.max(0, Math.floor(Number(creditLimit) || 0)), creditTarget || undefined);
+      setCreditMsg(`✅ Límite de ${Math.floor(Number(creditLimit) || 0)} pts ${creditTarget ? 'actualizado' : 'aplicado a todos'}.`);
+    } catch {
+      setCreditMsg('No se pudo guardar.');
+    }
   };
 
   return (
@@ -531,6 +565,18 @@ function FamilySettings() {
             </div>
           ))
         )}
+      </Card>
+
+      <Card className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-500">Crédito / adelantos 💳</h2>
+        <p className="text-xs text-slate-400">Máximo de puntos que un miembro puede pedir por adelantado. Se salda solo con los puntos que gana en sus tareas.</p>
+        <select value={creditTarget} onChange={(e) => setCreditTarget(e.target.value)} className={input}>
+          <option value="">Todos los miembros</option>
+          {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+        </select>
+        <input type="number" inputMode="numeric" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="Límite de crédito (ej: 200) — 0 = sin crédito" className={input} />
+        {creditMsg && <p className="text-sm text-slate-500">{creditMsg}</p>}
+        <Button className="w-full" disabled={creditLimit === ''} onClick={saveCreditLimit}>Establecer límite</Button>
       </Card>
     </div>
   );

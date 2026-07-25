@@ -4,6 +4,42 @@ import express from 'express';
 import crypto from 'crypto';
 import type { Pool, PoolClient } from 'pg';
 import { reserveNextReference } from '@sinapsis/module-sdk-server';
+import webpush from 'web-push';
+
+// ── Web Push (VAPID) ──────────────────────────────────────────────────────────
+let vapidReady = false;
+const ensureVapid = (): boolean => {
+  if (vapidReady) return true;
+  const pub = process.env.VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  const sub = process.env.VAPID_SUBJECT || 'mailto:familytool@example.com';
+  if (!pub || !priv) return false;
+  try {
+    webpush.setVapidDetails(sub, pub, priv);
+    vapidReady = true;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const sendPush = async (pool: Pool, userId: string, title: string, body: string, data?: Record<string, unknown>) => {
+  if (!ensureVapid()) return;
+  try {
+    const subs = await pool.query('SELECT id, endpoint, p256dh, auth FROM "PushSubscription" WHERE "userId" = $1', [userId]);
+    const payload = JSON.stringify({ title, body, data: data || {} });
+    for (const s of subs.rows) {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
+      } catch (err: any) {
+        const code = err?.statusCode;
+        if (code === 404 || code === 410) await pool.query('DELETE FROM "PushSubscription" WHERE id = $1', [s.id]).catch(() => {});
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+};
 
 export type Currency = 'MONEY' | 'XP';
 
@@ -100,6 +136,24 @@ export const adjustWalletTx = async (client: PoolClient, args: AdjustArgs): Prom
       args.note || null
     ]
   );
+
+  // Auto-repago del adelanto: todo ingreso de dinero (que no sea el propio adelanto/repago)
+  // salda primero la deuda antes de sumar al saldo gastable.
+  if (args.currency === 'MONEY' && args.amount > 0 && args.reason !== 'credit_advance' && args.reason !== 'credit_repay') {
+    const debt = Number(wallet.creditUsed || 0);
+    // Solo lo que ENTRA (args.amount) salda deuda; el saldo previo no se toca.
+    const repay = Math.min(args.amount, debt);
+    if (repay > 0) {
+      const afterRepay = nextBalance - repay;
+      await client.query('UPDATE "Wallet" SET "moneyPoints" = $1, "creditUsed" = $2, "updatedAt" = NOW() WHERE id = $3', [afterRepay, debt - repay, wallet.id]);
+      await client.query(
+        `INSERT INTO "WalletLedger" (id, "walletId", "userId", "companyId", currency, amount, "balanceAfter", reason, "refType", "refId", note, "createdAt")
+         VALUES ($1, $2, $3, $4, 'MONEY', $5, $6, 'credit_repay', NULL, NULL, $7, NOW())`,
+        [crypto.randomUUID(), wallet.id, args.userId, args.companyId, -repay, afterRepay, 'Pago del adelanto']
+      );
+      return afterRepay;
+    }
+  }
   return nextBalance;
 };
 
@@ -274,6 +328,8 @@ const notify = async (
   } catch {
     /* noop */
   }
+  // Además de la notificación in-app, dispara la push (best-effort).
+  await sendPush(pool, userId, title, body || '', { type, refType, refId });
 };
 
 const getParentIds = async (pool: Pool, companyId: string): Promise<string[]> => {
@@ -648,10 +704,15 @@ export function registerFamilyRoutes(
       if (!userId) return res.status(400).json({ error: 'userId is required.' });
       const r = await pool.query('SELECT * FROM "Wallet" WHERE "userId" = $1 LIMIT 1', [userId]);
       const wallet = r.rows[0] || { moneyPoints: 0, xpPoints: 0 };
+      const creditLimit = Number(wallet.creditLimit || 0);
+      const creditUsed = Number(wallet.creditUsed || 0);
       res.json({
         moneyPoints: Number(wallet.moneyPoints || 0),
         xpPoints: Number(wallet.xpPoints || 0),
-        rank: computeRank(Number(wallet.xpPoints || 0))
+        rank: computeRank(Number(wallet.xpPoints || 0)),
+        creditLimit,
+        creditUsed,
+        creditAvailable: Math.max(0, creditLimit - creditUsed)
       });
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to load wallet', details: error.message });
@@ -747,6 +808,108 @@ export function registerFamilyRoutes(
     } catch (error: any) {
       if (error?.code === 'INSUFFICIENT_FUNDS') return res.status(400).json({ error: 'INSUFFICIENT_FUNDS' });
       res.status(500).json({ error: 'Failed to mint points', details: error.message });
+    }
+  });
+
+  // Descuento de puntos por el padre (penalización por situación familiar). No baja de 0.
+  family.post('/wallet/penalty', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const adminUserId = String(req.body?.adminUserId || '').trim();
+      const targetUserId = String(req.body?.targetUserId || '').trim();
+      const currency: Currency = String(req.body?.currency || 'MONEY').toUpperCase() === 'XP' ? 'XP' : 'MONEY';
+      const amount = Math.abs(Math.floor(Number(req.body?.amount || 0)));
+      const reason = String(req.body?.reason || '').trim();
+
+      if (!adminUserId || !targetUserId) return res.status(400).json({ error: 'adminUserId and targetUserId are required.' });
+      if (amount <= 0) return res.status(400).json({ error: 'amount must be positive.' });
+      if (!(await isParentUser(pool, adminUserId))) return res.status(403).json({ error: 'Only a parent can deduct points.' });
+
+      const companyId = await resolveUserCompanyId(pool, targetUserId);
+      if (!companyId) return res.status(404).json({ error: 'Target user not found.' });
+
+      const col = currency === 'MONEY' ? 'moneyPoints' : 'xpPoints';
+      const w = await pool.query(`SELECT "${col}" AS bal FROM "Wallet" WHERE "userId" = $1 LIMIT 1`, [targetUserId]);
+      const current = Number(w.rows[0]?.bal || 0);
+      const deducted = Math.min(amount, current); // no baja de 0
+      const unit = currency === 'XP' ? 'XP' : 'pts';
+
+      if (deducted > 0) {
+        await withTx(pool, (client) =>
+          adjustWalletTx(client, {
+            userId: targetUserId, companyId, currency, amount: -deducted,
+            reason: 'penalty', refType: 'user', refId: adminUserId, note: reason || null
+          })
+        );
+      }
+      await notify(pool, targetUserId, companyId, 'points_penalty', `Te descontaron ${deducted} ${unit}`, reason || 'Descuento aplicado por un adulto.', 'user', adminUserId);
+      res.status(201).json({ targetUserId, currency, requested: amount, deducted });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to deduct points', details: error.message });
+    }
+  });
+
+  // ═══════════════════════ Crédito / adelanto de puntos ═══════════════════════
+
+  // El usuario pide un adelanto (dentro de su límite). Le da puntos ahora y crea deuda.
+  family.post('/wallet/credit/request', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const userId = String(req.body?.userId || '').trim();
+      const amount = Math.floor(Number(req.body?.amount || 0));
+      if (!userId) return res.status(400).json({ error: 'userId is required.' });
+      if (amount <= 0) return res.status(400).json({ error: 'amount must be positive.' });
+
+      const companyId = await resolveUserCompanyId(pool, userId);
+      if (!companyId) return res.status(404).json({ error: 'User not found.' });
+
+      const wr = await pool.query('SELECT "creditLimit", "creditUsed" FROM "Wallet" WHERE "userId" = $1 LIMIT 1', [userId]);
+      const limit = Number(wr.rows[0]?.creditLimit || 0);
+      const used = Number(wr.rows[0]?.creditUsed || 0);
+      const available = Math.max(0, limit - used);
+      if (limit <= 0) return res.status(403).json({ error: 'NO_CREDIT', message: 'No tenés crédito habilitado.' });
+      if (amount > available) return res.status(400).json({ error: 'CREDIT_LIMIT', available });
+
+      await withTx(pool, async (client) => {
+        await adjustWalletTx(client, { userId, companyId, currency: 'MONEY', amount, reason: 'credit_advance', note: 'Adelanto de puntos' });
+        await client.query('UPDATE "Wallet" SET "creditUsed" = "creditUsed" + $1, "updatedAt" = NOW() WHERE "userId" = $2', [amount, userId]);
+      });
+      await notifyParents(pool, companyId, 'credit_requested', 'Adelanto de puntos', `Un miembro pidió ${amount} pts de adelanto.`, 'user', userId);
+      res.status(201).json({ amount, creditUsed: used + amount, creditLimit: limit, creditAvailable: available - amount });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to request credit', details: error.message });
+    }
+  });
+
+  // El padre fija el límite de crédito de un miembro, o de todos (sin targetUserId).
+  family.post('/wallet/credit/limit', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const adminUserId = String(req.body?.adminUserId || '').trim();
+      const companyId = String(req.body?.companyId || '').trim();
+      const targetUserId = String(req.body?.targetUserId || '').trim();
+      const limit = Math.max(0, Math.floor(Number(req.body?.limit || 0)));
+      if (!(await isParentUser(pool, adminUserId))) return res.status(403).json({ error: 'Only a parent can set credit limits.' });
+      if (!companyId) return res.status(400).json({ error: 'companyId is required.' });
+
+      if (targetUserId) {
+        await pool.query(
+          `INSERT INTO "Wallet" (id, "userId", "companyId", "moneyPoints", "xpPoints", "creditLimit", "createdAt", "updatedAt")
+           VALUES (gen_random_uuid(), $1, $2, 0, 0, $3, NOW(), NOW())
+           ON CONFLICT ("userId") DO UPDATE SET "creditLimit" = $3, "updatedAt" = NOW()`,
+          [targetUserId, companyId, limit]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO "Wallet" (id, "userId", "companyId", "moneyPoints", "xpPoints", "creditLimit", "createdAt", "updatedAt")
+           SELECT gen_random_uuid(), u.id, u."companyId", 0, 0, $1, NOW(), NOW() FROM "User" u WHERE u."companyId" = $2
+           ON CONFLICT ("userId") DO UPDATE SET "creditLimit" = $1, "updatedAt" = NOW()`,
+          [limit, companyId]
+        );
+      }
+      res.json({ success: true, limit });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to set credit limit', details: error.message });
     }
   });
 
@@ -1202,6 +1365,43 @@ export function registerFamilyRoutes(
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to delete recurrence', details: error.message });
+    }
+  });
+
+  // ═══════════════════════ Web Push ══════════════════════════════════════════
+  family.get('/push/vapid', async (_req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
+  });
+
+  family.post('/push/subscribe', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const userId = String(req.body?.userId || '').trim();
+      const sub = req.body?.subscription;
+      const endpoint = String(sub?.endpoint || '').trim();
+      const p256dh = String(sub?.keys?.p256dh || '').trim();
+      const auth = String(sub?.keys?.auth || '').trim();
+      if (!userId || !endpoint || !p256dh || !auth) return res.status(400).json({ error: 'userId and a valid subscription are required.' });
+      await pool.query(
+        `INSERT INTO "PushSubscription" (id, "userId", endpoint, p256dh, auth, "createdAt")
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW())
+         ON CONFLICT (endpoint) DO UPDATE SET "userId" = $1, p256dh = $3, auth = $4`,
+        [userId, endpoint, p256dh, auth]
+      );
+      res.status(201).json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to subscribe', details: error.message });
+    }
+  });
+
+  family.post('/push/unsubscribe', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const endpoint = String(req.body?.endpoint || '').trim();
+      if (endpoint) await pool.query('DELETE FROM "PushSubscription" WHERE endpoint = $1', [endpoint]);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to unsubscribe', details: error.message });
     }
   });
 

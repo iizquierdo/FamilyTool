@@ -22,6 +22,9 @@ export interface Wallet {
   moneyPoints: number;
   xpPoints: number;
   rank: Rank;
+  creditLimit: number;
+  creditUsed: number;
+  creditAvailable: number;
 }
 export interface LedgerEntry {
   id: string;
@@ -159,6 +162,12 @@ export const familyApi = {
   rejectTask: (id: string, reason: string) => api.post<Task>(`/tasks/${id}/reject`, { reason }),
   mint: (adminUserId: string, targetUserId: string, currency: 'MONEY' | 'XP', amount: number, note?: string) =>
     api.post('/tasks/family/wallet/mint', { adminUserId, targetUserId, currency, amount, note }),
+  penalty: (adminUserId: string, targetUserId: string, currency: 'MONEY' | 'XP', amount: number, reason: string) =>
+    api.post<{ requested: number; deducted: number }>('/tasks/family/wallet/penalty', { adminUserId, targetUserId, currency, amount, reason }),
+  requestCredit: (userId: string, amount: number) =>
+    api.post<{ amount: number; creditUsed: number; creditLimit: number; creditAvailable: number }>('/tasks/family/wallet/credit/request', { userId, amount }),
+  setCreditLimit: (adminUserId: string, companyId: string, limit: number, targetUserId?: string) =>
+    api.post('/tasks/family/wallet/credit/limit', { adminUserId, companyId, limit, targetUserId }),
   approveWithdrawal: (id: string, approverId: string) => api.post(`/tasks/family/wallet/withdrawals/${id}/approve`, { approverId }),
   rejectWithdrawal: (id: string, approverId: string, reason: string) =>
     api.post(`/tasks/family/wallet/withdrawals/${id}/reject`, { approverId, reason }),

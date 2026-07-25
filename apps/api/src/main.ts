@@ -12,7 +12,8 @@ dotenv.config({ path: path.join(apiRoot, '.env'), override: true });
 
 const { default: app } = await import('./server');
 
-const port = Number(process.env.API_PORT ?? 4000);
+// Railway/Render/etc. inyectan PORT; en local usamos API_PORT.
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
 const host = process.env.API_HOST ?? '0.0.0.0';
 
 app.listen(port, host, () => {

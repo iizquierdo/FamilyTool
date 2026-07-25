@@ -15,8 +15,9 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-// Registrar el service worker solo en producción (evita cachear durante el dev).
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// Registrar el service worker (necesario para las notificaciones push). No cachea, así
+// que no interfiere con el dev.
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });

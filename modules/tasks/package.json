@@ -13,7 +13,8 @@
   "dependencies": {
     "@sinapsis/module-sdk-client": "workspace:*",
     "@sinapsis/module-sdk-server": "workspace:*",
-    "@sinapsis/shared-types": "workspace:*"
+    "@sinapsis/shared-types": "workspace:*",
+    "web-push": "^3.6.7"
   },
   "peerDependencies": {
     "express": "^5",

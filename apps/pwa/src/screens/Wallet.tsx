@@ -9,6 +9,9 @@ const reasonLabel: Record<string, string> = {
   transfer_out: 'Transferencia enviada',
   withdrawal: 'Retiro',
   mint: 'Puntos cargados',
+  penalty: 'Descuento',
+  credit_advance: 'Adelanto recibido',
+  credit_repay: 'Pago del adelanto',
   goal_contribution: 'Aporte a meta',
   adjustment: 'Ajuste'
 };
@@ -19,6 +22,9 @@ const reasonIcon: Record<string, string> = {
   transfer_out: '📤',
   withdrawal: '💵',
   mint: '➕',
+  penalty: '⚠️',
+  credit_advance: '💳',
+  credit_repay: '↩️',
   goal_contribution: '🎯',
   adjustment: '⚙️'
 };
@@ -42,7 +48,7 @@ export default function WalletScreen() {
   const [config, setConfig] = useState<FamilyConfig | null>(null);
   const [game, setGame] = useState<Gamification | null>(null);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<null | 'transfer' | 'withdraw'>(null);
+  const [modal, setModal] = useState<null | 'transfer' | 'withdraw' | 'credit'>(null);
   const [msg, setMsg] = useState('');
 
   const load = useCallback(async () => {
@@ -91,6 +97,20 @@ export default function WalletScreen() {
           </button>
         </div>
       </div>
+
+      {/* Adelanto de puntos — intencionalmente discreto */}
+      {(wallet.creditUsed > 0 || wallet.creditAvailable > 0) && (
+        <div className="px-1 text-center">
+          {wallet.creditUsed > 0 && (
+            <p className="text-[11px] text-slate-400">Adelanto pendiente: {wallet.creditUsed} pts · se descuenta de lo que ganes</p>
+          )}
+          {wallet.creditAvailable > 0 && (
+            <button onClick={() => { setMsg(''); setModal('credit'); }} className="text-[11px] text-slate-400 underline">
+              Pedir un adelanto de puntos
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Reputación / rango */}
       <div className={card}>
@@ -200,7 +220,45 @@ export default function WalletScreen() {
           }}
         />
       )}
+
+      {modal === 'credit' && (
+        <CreditModal
+          available={wallet.creditAvailable}
+          used={wallet.creditUsed}
+          limit={wallet.creditLimit}
+          onClose={() => setModal(null)}
+          error={msg}
+          onDone={async (amount) => {
+            try {
+              await familyApi.requestCredit(user!.id, amount);
+              setModal(null);
+              setMsg('');
+              await load();
+            } catch (e) {
+              setMsg(e instanceof ApiError && e.body?.error === 'CREDIT_LIMIT' ? 'Supera tu crédito disponible.' : 'No se pudo pedir el adelanto.');
+            }
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function CreditModal({ available, used, limit, onClose, onDone, error }: { available: number; used: number; limit: number; onClose: () => void; onDone: (amount: number) => void; error: string; }) {
+  const [amount, setAmount] = useState('');
+  return (
+    <Sheet title="Pedir adelanto de puntos" onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-xs text-slate-400">
+          Es un <strong>adelanto</strong>: los puntos que ganes con tus tareas lo saldan antes de sumar a tu saldo. Disponible: {available} pts (usado {used}/{limit}).
+        </p>
+        <input type="number" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Cuántos puntos" className={field} />
+        {error && <p className="text-sm text-rose-500">{error}</p>}
+        <button className={primaryBtn} disabled={Number(amount) <= 0 || Number(amount) > available} onClick={() => onDone(Math.floor(Number(amount)))}>
+          Pedir adelanto
+        </button>
+      </div>
+    </Sheet>
   );
 }
 

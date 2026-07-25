@@ -27,6 +27,10 @@
     "module:uninstall": "pnpm --filter @sinapsis/api run module:uninstall --",
     "module:status": "pnpm --filter @sinapsis/api run module:status --",
     "familytool:provision": "pnpm --filter @sinapsis/api exec tsx scripts/familytool-provision.ts",
-    "familytool:seed-tasks": "pnpm --filter @sinapsis/api exec tsx scripts/seed-example-tasks.ts"
+    "familytool:seed-tasks": "pnpm --filter @sinapsis/api exec tsx scripts/seed-example-tasks.ts",
+    "deploy:prepare": "pnpm --filter @sinapsis/api run prisma:generate && pnpm --filter @sinapsis/api run prisma:deploy && pnpm --filter @sinapsis/api exec tsx scripts/bootstrap.ts && pnpm --filter @sinapsis/api exec tsx scripts/module-manager.ts install tasks && pnpm familytool:provision",
+    "start:api": "pnpm --filter @sinapsis/api run start",
+    "start:pwa": "pnpm --filter @familytool/pwa run start",
+    "build:pwa": "pnpm --filter @familytool/pwa run build"
   }
 }

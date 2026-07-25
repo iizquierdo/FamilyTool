@@ -1,4 +1,7 @@
-// Cliente HTTP de la PWA. En dev, Vite proxea /api → API (puerto 4099).
+// Cliente HTTP de la PWA.
+// - En dev: VITE_API_BASE_URL vacío → usa /api (Vite proxea al API en 4099).
+// - En prod (Railway): VITE_API_BASE_URL = URL pública del API (ej: https://familytool-api.up.railway.app).
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const TOKEN_KEY = 'familytool.token';
 const USER_KEY = 'familytool.user';
 
@@ -43,7 +46,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined

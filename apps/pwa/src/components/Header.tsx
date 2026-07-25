@@ -3,6 +3,7 @@ import { useAuth } from '../auth';
 import { familyApi, type AppNotification } from '../family';
 import Avatar from './Avatar';
 import ProfileModal from './ProfileModal';
+import { pushSupported, isPushEnabled, enablePush, disablePush } from '../push';
 
 const typeIcon: Record<string, string> = {
   task_submitted: '📝',
@@ -12,6 +13,8 @@ const typeIcon: Record<string, string> = {
   withdrawal_approved: '✅',
   withdrawal_rejected: '⛔',
   points_minted: '➕',
+  points_penalty: '⚠️',
+  credit_requested: '💳',
   transfer_received: '🤝'
 };
 
@@ -40,6 +43,30 @@ export default function Header() {
   const [points, setPoints] = useState<number | null>(null);
   const [panel, setPanel] = useState<null | 'notif' | 'user'>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    isPushEnabled().then(setPushOn).catch(() => {});
+  }, []);
+
+  const togglePush = async () => {
+    if (!user) return;
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+      } else {
+        await enablePush(user.id);
+        setPushOn(true);
+      }
+    } catch (e: any) {
+      if (e?.message === 'denied') alert('Bloqueaste las notificaciones. Habilitalas desde el navegador para activarlas.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const load = useCallback(() => {
     if (!user) return;
@@ -133,6 +160,11 @@ export default function Header() {
               <p className="truncate text-xs text-slate-500">{user?.email}</p>
             </div>
           </div>
+          {pushSupported() && (
+            <button onClick={togglePush} disabled={pushBusy} className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+              <span>{pushOn ? '🔕' : '🔔'}</span> {pushBusy ? 'Un momento…' : pushOn ? 'Desactivar notif. push' : 'Activar notif. push'}
+            </button>
+          )}
           <button onClick={() => { setPanel(null); setProfileOpen(true); }} className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">
             <span>✏️</span> Editar perfil
           </button>

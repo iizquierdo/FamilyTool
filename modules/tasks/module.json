@@ -13,7 +13,9 @@
                        "migrations/003_gamification.sql",
                        "migrations/004_subtasks.sql",
                        "migrations/005_notifications.sql",
-                       "migrations/006_recurrence.sql"
+                       "migrations/006_recurrence.sql",
+                       "migrations/007_credit.sql",
+                       "migrations/008_push.sql"
                    ],
     "api":  {
                 "basePath":  "/api/tasks",
