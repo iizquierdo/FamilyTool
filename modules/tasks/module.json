@@ -1,0 +1,23 @@
+{
+    "name":  "Tasks",
+    "code":  "TASKS",
+    "version":  "1.0.0",
+    "description":  "Task planning, calendar and kanban with sharing",
+    "entry":  {
+                  "api":  "modules/tasks/server/index.ts",
+                  "ui":  "modules/tasks/client/TaskModule.tsx"
+              },
+    "migrations":  [
+                       "migrations/001_init_tasks.sql",
+                       "migrations/002_familytool.sql",
+                       "migrations/003_gamification.sql",
+                       "migrations/004_subtasks.sql",
+                       "migrations/005_notifications.sql",
+                       "migrations/006_recurrence.sql"
+                   ],
+    "api":  {
+                "basePath":  "/api/tasks",
+                "openapiPath":  "/api/tasks/openapi.json",
+                "docsPath":  "/api/tasks/docs"
+            }
+}

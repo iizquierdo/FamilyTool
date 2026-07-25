@@ -1,0 +1,18 @@
+{
+    "name":  "CRM",
+    "code":  "CRM",
+    "version":  "1.0.0",
+    "description":  "Sales CRM with opportunities pipeline and follow-up activities",
+    "entry":  {
+                  "api":  "modules/crm/server/index.ts",
+                  "ui":  "modules/crm/client/CrmModule.tsx"
+              },
+    "migrations":  [
+                       "migrations/001_init_crm.sql"
+                   ],
+    "api":  {
+                "basePath":  "/api/crm",
+                "openapiPath":  "/api/crm/openapi.json",
+                "docsPath":  "/api/crm/docs"
+            }
+}

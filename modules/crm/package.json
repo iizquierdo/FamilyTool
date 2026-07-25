@@ -1,0 +1,23 @@
+{
+  "name": "@sinapsis/module-crm",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./client/index.ts",
+  "exports": {
+    "./client": "./client/index.ts",
+    "./server": "./server/index.ts",
+    "./install": "./install.ts",
+    "./uninstall": "./uninstall.ts"
+  },
+  "dependencies": {
+    "@sinapsis/module-sdk-client": "workspace:*",
+    "@sinapsis/module-sdk-server": "workspace:*",
+    "@sinapsis/shared-types": "workspace:*"
+  },
+  "peerDependencies": {
+    "express": "^5",
+    "pg": "^8",
+    "react": ">=18"
+  }
+}

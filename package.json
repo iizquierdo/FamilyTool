@@ -1,0 +1,32 @@
+{
+  "name": "sinapsis-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Sinapsis CRM/ERP monorepo (web + api + modules)",
+  "packageManager": "pnpm@10.26.2",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @sinapsis/web --filter @sinapsis/api run dev",
+    "dev:web": "pnpm --filter @sinapsis/web run dev",
+    "dev:api": "pnpm --filter @sinapsis/api run dev",
+    "dev:pwa": "pnpm --filter @familytool/pwa run dev",
+    "dev:family": "pnpm -r --parallel --filter @familytool/pwa --filter @sinapsis/api run dev",
+    "build": "pnpm --filter @sinapsis/web run build && pnpm --filter @sinapsis/api run build",
+    "build:web": "pnpm --filter @sinapsis/web run build",
+    "build:api": "pnpm --filter @sinapsis/api run build",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "prisma:generate": "pnpm --filter @sinapsis/api run prisma:generate",
+    "prisma:migrate": "pnpm --filter @sinapsis/api run prisma:migrate",
+    "prisma:deploy": "pnpm --filter @sinapsis/api run prisma:deploy",
+    "prisma:seed": "pnpm --filter @sinapsis/api run prisma:seed",
+    "module:list": "pnpm --filter @sinapsis/api run module:list",
+    "module:install": "pnpm --filter @sinapsis/api run module:install --",
+    "module:uninstall": "pnpm --filter @sinapsis/api run module:uninstall --",
+    "module:status": "pnpm --filter @sinapsis/api run module:status --",
+    "familytool:provision": "pnpm --filter @sinapsis/api exec tsx scripts/familytool-provision.ts",
+    "familytool:seed-tasks": "pnpm --filter @sinapsis/api exec tsx scripts/seed-example-tasks.ts"
+  }
+}

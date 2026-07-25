@@ -1,0 +1,15 @@
+{
+  "name": "Subscription plans",
+  "code": "SUBSCRIPTION_PLANS",
+  "version": "1.0.0",
+  "description": "Catálogo de planes de suscripción y asignación por organización",
+  "entry": {
+    "api": "modules/subscription-plans/server/index.ts"
+  },
+  "migrations": [],
+  "api": {
+    "basePath": "/api/subscription-plans",
+    "openapiPath": "/api/subscription-plans/openapi.json",
+    "docsPath": "/api/subscription-plans/docs"
+  }
+}

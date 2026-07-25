@@ -1,0 +1,57 @@
+[
+  {
+    "id": "50500d81-ca7d-412e-a1d4-bf59c4ce3c21",
+    "name": "Super Admin",
+    "email": "admin@sinapsis.app",
+    "role": "Administrator",
+    "company": "Main Company",
+    "avatar": null,
+    "lastLogin": "Never",
+    "twoStep": false,
+    "joinedDate": "7/3/2026"
+  },
+  {
+    "id": "a77d69e8-10df-47d9-b006-edffa902d223",
+    "name": "Emma Smith",
+    "email": "emma@sinapsis.app",
+    "role": "Analyst",
+    "company": "Main Company",
+    "avatar": null,
+    "lastLogin": "Never",
+    "twoStep": false,
+    "joinedDate": "7/3/2026"
+  },
+  {
+    "id": "3d3732ff-43fe-4a62-a700-6f3d7cb428ed",
+    "name": "Melody Macy",
+    "email": "melody@sinapsis.app",
+    "role": "Analyst",
+    "company": "Main Company",
+    "avatar": null,
+    "lastLogin": "Never",
+    "twoStep": false,
+    "joinedDate": "7/3/2026"
+  },
+  {
+    "id": "2f25d6cd-2ca3-4ce0-bc55-cd4165fd4233",
+    "name": "Max Smith",
+    "email": "max@sinapsis.app",
+    "role": "Developer",
+    "company": "Sinapsis Logistics",
+    "avatar": null,
+    "lastLogin": "Never",
+    "twoStep": false,
+    "joinedDate": "7/3/2026"
+  },
+  {
+    "id": "d648fec8-9a0f-4aa9-9a64-096e2d9c0c46",
+    "name": "Sean Bean",
+    "email": "sean@sinapsis.app",
+    "role": "Support",
+    "company": "Main Company",
+    "avatar": null,
+    "lastLogin": "Never",
+    "twoStep": false,
+    "joinedDate": "7/3/2026"
+  }
+]

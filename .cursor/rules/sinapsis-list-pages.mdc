@@ -1,0 +1,48 @@
+---
+description: Formato estándar para pantallas de listado (tabla) en tenant o settings, alineado a CompaniesSettingsTable
+alwaysApply: false
+---
+
+# Listas en Sinapsis (formato estándar)
+
+Al crear o refactorizar una **página de listado** (tabla con búsqueda, ordenación y acciones), sigue este patrón para mantener coherencia con el listado de compañías y el resto del producto.
+
+## Referencia obligatoria
+
+Reutiliza la misma composición que `components/settings/CompaniesSettingsTable.tsx`:
+
+1. **Bloque de contexto** (encima de la tarjeta), no dentro del `Card`:
+   - `h2` con `className="text-3xl font-extrabold tracking-tight text-slate-900"` (y variante `dark:` si aplica).
+   - Párrafo descriptivo debajo: `mt-1 font-medium text-slate-500`.
+
+2. **Contenedor de lista**: `Card` con `className="overflow-hidden"`.
+
+3. **Cabecera del card** (`CardHeader` con `min-h-0 flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between`):
+   - **Izquierda**: `CardHeading` → `CardTitle` (el componente ya aplica **mayúsculas** y tipografía de título de listado).
+   - **Derecha** (`CardToolbar` con `w-full flex-wrap … sm:justify-end`):
+     - Búsqueda: `div` `relative` + icono **lucide-react** `Search` posicionado `absolute start-3 top-1/2 …` + `Input` `type="search"` con `className="ps-9"` y `placeholder` traducido.
+     - Acción principal a la derecha: `Button` **`variant="primary"`** (por ejemplo “+ Nuevo …” o “Actualizar” con icono `Plus` / `RefreshCw`). No dejar la toolbar solo con búsqueda sin botón principal salvo que el PM lo pida explícitamente.
+
+4. **Cuerpo de tabla**: `CardTable` con `className="p-0"` envolviendo `DataGrid` + `div.overflow-x-auto` + `DataGridTable`.
+
+5. **Tabla de datos**:
+   - **TanStack Table** (`useReactTable`, `getCoreRowModel`, `getSortedRowModel`, estado `sorting` / `onSortingChange`).
+   - Columnas ordenables: cabecera con **`DataGridColumnHeader`** y `meta.headerTitle` coherente con el título mostrado.
+   - Columna de acciones: `enableSorting: false`, cabecera alineada a la derecha con el mismo patrón que en compañías (`span` con `uppercase tracking-wide text-table-header-foreground`), celdas `flex justify-end gap-1` y **`Button` `mode="icon"` `size="sm"` `variant="outline"` `className="size-8"`** con iconos **lucide** (`Eye`, `Pencil`, `Trash2`, etc.).
+   - **Clic en fila** (`onRowClick` en `DataGrid`) cuando tenga sentido (p. ej. ver detalle), además de botones de acción.
+
+6. **`DataGrid`**: pasar `tableLayout` alineado al listado de referencia, por ejemplo:
+
+   `rowBorder: true`, `headerBackground: true`, `headerBorder: true`, `width: 'auto'`.
+
+7. **Filas vacías / carga**: `recordCount`, `emptyMessage` (sin datos vs sin coincidencias de búsqueda) e **`isLoading`** cuando los datos vengan de API.
+
+8. **Búsqueda en listado**: filtrado en **cliente** con `useMemo` sobre el array cargado (como en compañías), salvo que el volumen obligue a búsqueda server-side documentada.
+
+9. **Imports**: `Card`, `CardHeader`, `CardHeading`, `CardTitle`, `CardToolbar`, `CardTable` desde `@/components/ui/card`; `DataGrid`, `DataGridTable`, `DataGridColumnHeader` desde `@/components/ui/data-grid*`.
+
+## Evitar
+
+- Tablas “planas” con `<table>` manual sin `DataGrid` / `DataGridColumnHeader` en nuevas pantallas de producto.
+- Barra de búsqueda sin icono ni sin el layout de toolbar del card.
+- Sustituir el botón primary verde por `variant="secondary"` como única acción principal del listado, salvo excepción acordada.

@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+  - modules/*
+
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - prisma
+  - esbuild
+  - "@google/genai"
+  - core-js
+  - protobufjs

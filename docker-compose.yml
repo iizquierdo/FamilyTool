@@ -1,0 +1,18 @@
+name: ${COMPOSE_PROJECT_NAME:-familytool}
+
+services:
+  db:
+    container_name: ${COMPOSE_PROJECT_NAME:-familytool}-db
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=${POSTGRES_DB:-familytool_db}
+    ports:
+      - "${COMPOSE_PROJECT_PORT:-5544}:5432"
+    volumes:
+      - familytool_pgdata:/var/lib/postgresql/data
+
+volumes:
+  familytool_pgdata:

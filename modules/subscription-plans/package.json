@@ -1,0 +1,19 @@
+{
+  "name": "@sinapsis/module-subscription-plans",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./server/index.ts",
+  "exports": {
+    "./server": "./server/index.ts",
+    "./install": "./install.ts",
+    "./uninstall": "./uninstall.ts"
+  },
+  "dependencies": {
+    "@sinapsis/module-sdk-server": "workspace:*"
+  },
+  "peerDependencies": {
+    "express": "^5",
+    "pg": "^8"
+  }
+}

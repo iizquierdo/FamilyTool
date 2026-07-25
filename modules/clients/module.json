@@ -1,0 +1,23 @@
+{
+    "name":  "Clients",
+    "code":  "CLIENTS",
+    "version":  "1.0.0",
+    "description":  "Manage company clients and their lifecycle",
+    "entry":  {
+                  "api":  "modules/clients/server/index.ts",
+                  "ui":  "modules/clients/client/ClientModule.tsx"
+              },
+    "migrations":  [
+                       "migrations/001_init_clients.sql",
+                       "migrations/002_client_companies.sql",
+                       "migrations/003_client_state_zipcode.sql",
+                       "migrations/004_entity_social_links.sql",
+                       "migrations/005_entity_files.sql",
+                       "migrations/006_entity_notes.sql"
+                   ],
+    "api":  {
+                "basePath":  "/api/clients",
+                "openapiPath":  "/api/clients/openapi.json",
+                "docsPath":  "/api/clients/docs"
+            }
+}

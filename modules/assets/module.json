@@ -1,0 +1,16 @@
+{
+  "name": "Assets",
+  "code": "ASSETS",
+  "version": "1.0.0",
+  "description": "Asset catalog and instances with multi-company assignment",
+  "entry": {
+    "api": "modules/assets/server/index.ts",
+    "admin": "modules/assets/server/adminRoutes.ts"
+  },
+  "migrations": ["migrations/001_init_assets.sql"],
+  "api": {
+    "basePath": "/api/assets",
+    "openapiPath": "/api/assets/openapi.json",
+    "docsPath": "/api/assets/docs"
+  }
+}

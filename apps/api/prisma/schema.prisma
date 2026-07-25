@@ -1,0 +1,287 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id                String    @id @default(uuid())
+  name              String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  currencyPosition  String    @default("Prefix")
+  dateFormat        String    @default("YYYY/MM/DD")
+  defaultLanguage   String    @default("es")
+  moneyFormat       String    @default("1,234.56")
+  timeFormat        String    @default("HH:mm")
+  timezone          String    @default("UTC")
+  baseCurrency      String?   @default("USD")
+  address           String?
+  addressAdditional String?
+  zipcode           String?
+  city              String?
+  state             String?
+  country           String?
+  email             String?
+  taxId             String?
+  website           String?
+  storageProvider   String    @default("Local")
+  storageSettings   Json?
+  subscriptionPlanId String
+  companies         Company[]
+  categoryItems     CategoryItem[]
+  subscriptionPlan  SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
+
+  @@index([subscriptionPlanId])
+}
+
+model SubscriptionPlan {
+  id                 String         @id @default(uuid())
+  code               String         @unique
+  name               String
+  description        String?
+  status             String         @default("Active")
+  sortOrder          Int            @default(0)
+  billingPeriod      String         @default("Monthly")
+  priceCents         Int            @default(0)
+  currency           String         @default("USD")
+  trialDays          Int            @default(0)
+  badgeLabel         String?
+  maxUsers           Int?
+  maxCompanies       Int?
+  maxStorageMb       Int?
+  maxApiCallsPerDay  Int?
+  features           Json?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  organizations      Organization[]
+}
+
+/// Singleton application-wide settings (single row, id = 1).
+model Core {
+  id Int @id @default(1)
+
+  appName          String  @default("Sinapsis CRM/ERP")
+  logoUrl          String?
+  faviconUrl       String?
+  primaryColor            String  @default("#eb4d4b")
+  secondaryColor          String  @default("#f4f4f5")
+  /// Fondo de la barra de iconos izquierda (rail estrecho).
+  sidebarBackgroundColor  String  @default("#000000")
+  /// Logo del rail izquierdo (distinto del logo general de la app si se desea).
+  sidebarLogoUrl          String?
+  /// Imagen de fondo de la pantalla de login (URL pública).
+  loginBackgroundUrl      String?
+  menuBarColor            String  @default("")
+
+  dateFormat        String  @default("YYYY/MM/DD")
+  timeFormat        String  @default("HH:mm")
+  timezone          String  @default("UTC")
+  baseCurrency      String? @default("USD")
+  moneyFormat       String  @default("1,234.56")
+  currencyPosition  String  @default("Prefix")
+  defaultLanguage   String  @default("es")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Company {
+  id               String       @id @default(uuid())
+  name             String
+  organizationId   String
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  category         String?
+  city             String?
+  code             String?      @unique
+  country          String?
+  description      String?
+  language         String?
+  dateFormat       String?
+  timeFormat       String?
+  timezone         String?
+  baseCurrency     String?
+  moneyFormat      String?
+  currencyPosition String?
+  defaultLanguage  String?
+  notes            String?
+  address          String?
+  zipcode          String?
+  state            String?
+  status           String       @default("Active")
+  type             String?
+  vatCode          String?
+  website          String?
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  users            User[]
+  categoryItems    CategoryItem[]
+  reference        Int?
+  fullreference    String?
+  email            String?
+  phone            String?
+  logoUrl          String?
+  references       Reference[]
+}
+
+model Category {
+  id          String         @id @default(uuid())
+  code        String?        @unique
+  name        String
+  description String?
+  module      String
+  status      String         @default("Active")
+  sortOrder   Int            @default(0)
+  sortingRule String         @default("Manual") // Manual, Alpha_ASC, Alpha_DESC
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  items       CategoryItem[]
+}
+
+model CategoryItem {
+  id               String        @id @default(uuid())
+  code             String?       @unique
+  name             String
+  description      String?
+  status           String        @default("Active")
+  sortOrder        Int           @default(0)
+  categoryId       String
+  organizationId String?
+  companyId        String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  category         Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company          Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, organizationId, companyId])
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  firstName String?
+  lastName  String?
+  password  String?
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  avatar    String?
+  role      String   @default("Administrator") // Legacy role field
+  roleId    String?
+  roleRef   Role?    @relation(fields: [roleId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id])
+}
+
+model SystemModule {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  code        String       @unique
+  description String?
+  status      String       @default("Active")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  permissions Permission[]
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  users       User[]
+  permissions Permission[]
+}
+
+model Permission {
+  id        String       @id @default(uuid())
+  roleId    String
+  moduleId  String
+  canRead   Boolean      @default(false)
+  canWrite  Boolean      @default(false)
+  canCreate Boolean      @default(false)
+  canDelete Boolean      @default(false)
+  role      Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module    SystemModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([roleId, moduleId])
+}
+
+model Reference {
+  id        String   @id @default(uuid())
+  companyId String?
+  module    String
+  code      String?
+  reference Int      @default(0)
+  prefix    String?
+  sufix     String?
+  digits    Int      @default(4)
+  clone     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, module, code])
+}
+
+model MenuGroup {
+  id        String     @id @default(uuid())
+  key       String
+  label     String
+  icon      String
+  status    String     @default("Active")
+  sortOrder Int        @default(0)
+  placement   String   @default("sidebar")
+  displayMode String   @default("icon_and_text")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     MenuItem[]
+
+  @@unique([key, placement])
+}
+
+model MenuItem {
+  id            String    @id @default(uuid())
+  groupId       String
+  label         String
+  icon          String
+  targetType    String
+  viewKey       String
+  moduleCode    String?
+  linkUrl       String?
+  openInNewTab  Boolean   @default(false)
+  status        String    @default("Active")
+  sortOrder     Int       @default(0)
+  displayMode   String    @default("icon_and_text")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  group         MenuGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, sortOrder])
+  @@index([viewKey])
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model TranslationOverride {
+  id        String   @id @default(cuid())
+  locale    String
+  namespace String?
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([locale, namespace, key])
+  @@index([locale])
+}

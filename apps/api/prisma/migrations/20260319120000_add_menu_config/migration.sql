@@ -1,0 +1,27 @@
+CREATE TABLE IF NOT EXISTS "MenuGroup" (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Active',
+  "sortOrder" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "MenuItem" (
+  id TEXT PRIMARY KEY,
+  "groupId" TEXT NOT NULL REFERENCES "MenuGroup"(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  "targetType" TEXT NOT NULL,
+  "viewKey" TEXT NOT NULL,
+  "moduleCode" TEXT,
+  status TEXT NOT NULL DEFAULT 'Active',
+  "sortOrder" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS "MenuItem_group_idx" ON "MenuItem"("groupId", "sortOrder");
+CREATE INDEX IF NOT EXISTS "MenuItem_view_idx" ON "MenuItem"("viewKey");

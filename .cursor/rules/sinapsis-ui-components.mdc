@@ -1,0 +1,13 @@
+---
+description: Usar siempre los componentes de UI compartidos en components/ui
+alwaysApply: true
+---
+
+# UI compartido (`components/ui`)
+
+Al crear o modificar pantallas, formularios, tablas, feedback o navegación en este repo:
+
+1. **Importar desde** `@/components/ui/*` (por ejemplo `button`, `input`, `label`, `card`, `dialog`, `alert`, `select`, `table`, `textarea`, `badge`, `skeleton`).
+2. **No** introducir controles “crudos” (`<button>`, `<input>`, `<select>` sin estilos del design system) salvo casos imposibles de cubrir con el kit (p. ej. `<input type="color">` o `<input type="file">`), y en ese caso combinarlos con `Label`, `Card` o clases alineadas a `inputVariants` de `@/components/ui/input`.
+3. Para **admin** (`components/admin/**`), misma regla: login, layout, sidebar y páginas deben usar el mismo kit que el resto de la app.
+4. Si falta un patrón, **extender** un componente existente en `components/ui` en lugar de duplicar estilos inline en muchas pantallas.

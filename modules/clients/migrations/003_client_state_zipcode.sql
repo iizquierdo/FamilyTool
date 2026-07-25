@@ -1,0 +1,3 @@
+ALTER TABLE "Client"
+    ADD COLUMN IF NOT EXISTS "state" TEXT,
+    ADD COLUMN IF NOT EXISTS "zipcode" TEXT;

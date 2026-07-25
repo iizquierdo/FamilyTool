@@ -1,0 +1,19 @@
+{
+  "name": "Financial Documents",
+  "code": "FIN_DOCS",
+  "version": "1.0.0",
+  "description": "Manage invoices, credit/debit memos, purchase orders, receipts and delivery notes",
+  "entry": {
+    "api": "modules/financial-documents/server/index.ts",
+    "ui": "modules/financial-documents/client/FinancialDocumentsModule.tsx"
+  },
+  "migrations": [
+    "migrations/001_init_financial_documents.sql",
+    "migrations/002_add_client_id.sql"
+  ],
+  "api": {
+    "basePath": "/api/financial-documents",
+    "openapiPath": "/api/financial-documents/openapi.json",
+    "docsPath": "/api/financial-documents/docs"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "@sinapsis/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "build": "echo 'api: no compile step (tsx runs .ts at runtime)'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "module:list": "tsx scripts/module-manager.ts list",
+    "module:install": "tsx scripts/module-manager.ts install",
+    "module:uninstall": "tsx scripts/module-manager.ts uninstall",
+    "module:status": "tsx scripts/module-manager.ts status"
+  },
+  "dependencies": {
+    "@sinapsis/module-sdk-server": "workspace:*",
+    "@sinapsis/shared-types": "workspace:*",
+    "@aws-sdk/client-ses": "^3.1007.0",
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "^7.4.2",
+    "@types/multer": "^2.1.0",
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
+    "jspdf": "^4.2.0",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.2",
+    "pg": "^8.20.0",
+    "qs": "^6.14.2",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.14.0",
+    "@types/nodemailer": "^6.4.15",
+    "@types/pg": "^8.18.0",
+    "prisma": "^7.4.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

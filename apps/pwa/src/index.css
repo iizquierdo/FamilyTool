@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+:root {
+  --ft-bg: #eaf0fb;
+  --ft-primary: #2f6bff;
+  --ft-ink: #1f2a44;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ft-bg);
+  color: var(--ft-ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Zona segura para el notch y la barra inferior */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 5rem); }
