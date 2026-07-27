@@ -4,6 +4,9 @@ import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import { AuthProvider } from './auth';
 import App from './App';
+import { initPwaInstallListener } from './pwaInstall';
+
+initPwaInstallListener();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
