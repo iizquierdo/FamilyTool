@@ -1,9 +1,10 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './auth';
 import { Spinner } from './ui';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import Login from './screens/Login';
+import JoinFamily from './screens/JoinFamily';
 import WalletScreen from './screens/Wallet';
 import Available from './screens/Available';
 import Responsibilities from './screens/Responsibilities';
@@ -13,6 +14,7 @@ import { isParent } from './family';
 
 export default function App() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -22,7 +24,13 @@ export default function App() {
     );
   }
 
-  if (!user) return <Login />;
+  if (!user) {
+    if (location.pathname === '/join') {
+      const code = new URLSearchParams(location.search).get('code');
+      if (code) return <JoinFamily code={code} />;
+    }
+    return <Login />;
+  }
 
   return (
     <div className="mx-auto min-h-full max-w-lg">

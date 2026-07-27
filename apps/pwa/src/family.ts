@@ -207,7 +207,30 @@ export const familyApi = {
     api.put<FamilyConfig>(`/tasks/family/config?companyId=${companyId}`, { editorId, ...body }),
   createGoal: (body: Record<string, unknown>) => api.post<FamilyGoal>('/tasks/family/goals', body),
   updateGoal: (id: string, body: Record<string, unknown>) => api.put<FamilyGoal>(`/tasks/family/goals/${id}`, body),
-  deleteGoal: (id: string) => api.del(`/tasks/family/goals/${id}`)
+  deleteGoal: (id: string) => api.del(`/tasks/family/goals/${id}`),
+
+  listInvites: (companyId: string) => api.get<FamilyInvite[]>(`/tasks/family/invites?companyId=${companyId}`),
+  createInvite: (adminUserId: string, companyId: string, isParent: boolean) =>
+    api.post<{ code: string; isParent: boolean; expiresAt: string }>('/tasks/family/invites', { adminUserId, companyId, isParent }),
+  revokeInvite: (code: string, adminUserId: string) => api.post(`/tasks/family/invites/${code}/revoke`, { adminUserId })
+};
+
+export interface FamilyInvite {
+  id: string;
+  code: string;
+  isParent: boolean;
+  maxUses: number | null;
+  usesCount: number;
+  expiresAt: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+// Endpoints públicos (sin sesión) para que quien recibe el link se registre.
+export const inviteApi = {
+  validate: (code: string) => api.get<{ valid: boolean; reason?: string; companyName?: string; isParent?: boolean }>(`/auth/invite/${code}`),
+  accept: (code: string, data: { name: string; email: string; password: string }) =>
+    api.post<{ token: string; user: SessionUser }>(`/auth/invite/${code}/accept`, data)
 };
 
 export interface Recurrence {

@@ -6,6 +6,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   registerTenant: (data: { familyName: string; firstName: string; lastName: string; email: string; password: string }) => Promise<void>;
+  acceptInvite: (code: string, data: { name: string; email: string; password: string }) => Promise<void>;
   logout: () => void;
   patchUser: (partial: Partial<SessionUser>) => void;
 }
@@ -58,6 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   };
 
+  // Alta vía invitación: se asocia a la familia dueña del código (no crea un tenant nuevo).
+  const acceptInvite = async (code: string, data: { name: string; email: string; password: string }) => {
+    const res = await api.post<{ token: string; user: SessionUser }>(`/auth/invite/${code}/accept`, data);
+    setToken(res.token);
+    setStoredUser(res.user);
+    setUser(res.user);
+  };
+
   const logout = () => {
     api.post('/auth/logout').catch(() => {});
     setToken(null);
@@ -74,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  return <AuthContext.Provider value={{ user, loading, login, registerTenant, logout, patchUser }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, registerTenant, acceptInvite, logout, patchUser }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

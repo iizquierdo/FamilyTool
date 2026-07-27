@@ -2392,6 +2392,114 @@ app.post('/api/auth/register-tenant', async (req, res) => {
     }
 });
 
+// Encuentra o crea un Role no-admin con permiso de lectura sobre TASKS, para asignar
+// a quien se suma a una familia por invitación como "Hijo/a" (mismo patrón que
+// modules/tasks/server/family.ts#ensureChildRoleId, duplicado acá por vivir en otro paquete).
+const ensureInviteChildRoleId = async (): Promise<string> => {
+    const existing = await pool.query(
+        `SELECT r.id FROM "Role" r
+         JOIN "Permission" p ON p."roleId" = r.id
+         JOIN "SystemModule" m ON m.id = p."moduleId" AND m.code = 'TASKS'
+         WHERE p."canRead" = TRUE AND LOWER(r.name) NOT IN ('administrator', 'admin')
+         ORDER BY r.name ASC LIMIT 1`
+    );
+    if (existing.rows[0]?.id) return existing.rows[0].id;
+
+    const roleId = crypto.randomUUID();
+    await pool.query(
+        `INSERT INTO "Role" (id, name, description, "createdAt", "updatedAt") VALUES ($1, 'Miembro', 'Miembro de familia (FamilyTool)', NOW(), NOW())`,
+        [roleId]
+    );
+    const mod = await pool.query('SELECT id FROM "SystemModule" WHERE code = $1 LIMIT 1', ['TASKS']);
+    const moduleId = mod.rows[0]?.id;
+    if (moduleId) {
+        await pool.query(
+            `INSERT INTO "Permission" (id, "roleId", "moduleId", "canRead", "canWrite", "canCreate", "canDelete", "createdAt", "updatedAt")
+             VALUES (gen_random_uuid(), $1, $2, TRUE, TRUE, TRUE, TRUE, NOW(), NOW())`,
+            [roleId, moduleId]
+        );
+    }
+    return roleId;
+};
+
+// Público: valida un código de invitación (sin necesitar sesión) antes de mostrar el
+// formulario de alta. No expone nada sensible, solo el nombre de la familia y el rol.
+app.get('/api/auth/invite/:code', async (req, res) => {
+    try {
+        const code = String(req.params.code || '').trim();
+        const r = await pool.query(
+            `SELECT fi.*, c.name AS "companyName" FROM "FamilyInvite" fi JOIN "Company" c ON c.id = fi."companyId" WHERE fi.code = $1 LIMIT 1`,
+            [code]
+        );
+        const invite = r.rows[0];
+        if (!invite) return res.json({ valid: false, reason: 'NOT_FOUND' });
+        if (!invite.active) return res.json({ valid: false, reason: 'REVOKED' });
+        if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) return res.json({ valid: false, reason: 'EXPIRED' });
+        if (invite.maxUses != null && invite.usesCount >= invite.maxUses) return res.json({ valid: false, reason: 'EXHAUSTED' });
+        res.json({ valid: true, companyName: invite.companyName, isParent: invite.isParent });
+    } catch (error: any) {
+        console.error('Error in GET /api/auth/invite/:code:', error);
+        res.status(500).json({ error: 'Failed to validate invite', details: error.message });
+    }
+});
+
+// Público: acepta la invitación, crea el usuario asociado a la familia del código y
+// devuelve una sesión (token + user), igual que login/register-tenant.
+app.post('/api/auth/invite/:code/accept', async (req, res) => {
+    try {
+        await ensureUserColumns();
+        const code = String(req.params.code || '').trim();
+        const name = String(req.body?.name || '').trim();
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const password = String(req.body?.password || '');
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: 'name, email and password are required.' });
+        }
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ error: 'Email is invalid.' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+        }
+
+        const inv = await pool.query('SELECT * FROM "FamilyInvite" WHERE code = $1 LIMIT 1', [code]);
+        const invite = inv.rows[0];
+        if (!invite) return res.status(404).json({ error: 'INVITE_NOT_FOUND' });
+        if (!invite.active) return res.status(410).json({ error: 'INVITE_REVOKED' });
+        if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) return res.status(410).json({ error: 'INVITE_EXPIRED' });
+        if (invite.maxUses != null && invite.usesCount >= invite.maxUses) return res.status(410).json({ error: 'INVITE_EXHAUSTED' });
+
+        const existing = await pool.query('SELECT id FROM "User" WHERE LOWER(email) = $1 LIMIT 1', [email]);
+        if (existing.rows[0]) {
+            return res.status(409).json({ error: 'A user with this email already exists.' });
+        }
+
+        const parts = name.split(' ').filter(Boolean);
+        const firstName = parts.shift() || name;
+        const lastName = parts.join(' ') || null;
+        const roleId = invite.isParent ? null : await ensureInviteChildRoleId();
+        const legacyRole = invite.isParent ? 'Administrator' : 'Member';
+        const userId = crypto.randomUUID();
+
+        await pool.query(
+            `INSERT INTO "User" (id, email, name, "firstName", "lastName", password, role, "roleId", "companyId", active, "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, NOW(), NOW())`,
+            [userId, email, name, firstName, lastName, hashPassword(password), legacyRole, roleId, invite.companyId]
+        );
+        await pool.query('UPDATE "FamilyInvite" SET "usesCount" = "usesCount" + 1, "updatedAt" = NOW() WHERE id = $1', [invite.id]);
+
+        const token = createSessionToken();
+        await pool.query('UPDATE "User" SET "sessionToken" = $1, "sessionTokenExpiresAt" = $2, "updatedAt" = NOW() WHERE id = $3', [token, sessionExpiry(), userId]);
+
+        const user = await getNormalizedUserById(userId);
+        res.status(201).json({ token, user });
+    } catch (error: any) {
+        console.error('Error in POST /api/auth/invite/:code/accept:', error);
+        res.status(500).json({ error: 'Failed to accept invite', details: error.message });
+    }
+});
+
 app.post('/api/auth/forgot-password', async (req, res) => {
     try {
         await ensureUserColumns();

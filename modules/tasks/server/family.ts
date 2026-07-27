@@ -1682,5 +1682,62 @@ export function registerFamilyRoutes(
     }
   });
 
+  // ═══════════════════════ Invitaciones (link para sumar miembros) ════════════
+  // Nota: crear/revocar requiere ser padre autenticado (mismo patrón que el resto de
+  // /tasks/family/*). La validación y el alta con el código lo hace un usuario NO
+  // autenticado todavía, por eso esos dos endpoints públicos viven en apps/api/src/server.ts
+  // (fuera de /api/tasks, que exige sesión) y no acá.
+
+  family.get('/invites', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const companyId = String(req.query.companyId || '').trim();
+      if (!companyId) return res.status(400).json({ error: 'companyId is required.' });
+      const r = await pool.query(
+        `SELECT id, code, "isParent", "maxUses", "usesCount", "expiresAt", active, "createdAt"
+         FROM "FamilyInvite" WHERE "companyId" = $1 ORDER BY "createdAt" DESC`,
+        [companyId]
+      );
+      res.json(r.rows);
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to list invites', details: error.message });
+    }
+  });
+
+  family.post('/invites', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const adminUserId = String(req.body?.adminUserId || '').trim();
+      const companyId = String(req.body?.companyId || '').trim();
+      const isParentInvite = Boolean(req.body?.isParent);
+      if (!adminUserId || !companyId) return res.status(400).json({ error: 'adminUserId and companyId are required.' });
+      if (!(await isParentUser(pool, adminUserId))) return res.status(403).json({ error: 'Only a parent can create invites.' });
+
+      const code = crypto.randomBytes(5).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000); // 7 días
+      const id = crypto.randomUUID();
+      await pool.query(
+        `INSERT INTO "FamilyInvite" (id, "companyId", code, "createdById", "isParent", "maxUses", "usesCount", "expiresAt", active, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, NULL, 0, $6, TRUE, NOW(), NOW())`,
+        [id, companyId, code, adminUserId, isParentInvite, expiresAt]
+      );
+      res.status(201).json({ code, isParent: isParentInvite, expiresAt });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to create invite', details: error.message });
+    }
+  });
+
+  family.post('/invites/:code/revoke', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const adminUserId = String(req.body?.adminUserId || '').trim();
+      if (!(await isParentUser(pool, adminUserId))) return res.status(403).json({ error: 'Only a parent can revoke invites.' });
+      await pool.query('UPDATE "FamilyInvite" SET active = FALSE, "updatedAt" = NOW() WHERE code = $1', [req.params.code]);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to revoke invite', details: error.message });
+    }
+  });
+
   router.use('/family', family);
 }

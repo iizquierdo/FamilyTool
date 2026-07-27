@@ -17,7 +17,8 @@
                        "migrations/007_credit.sql",
                        "migrations/008_push.sql",
                        "migrations/009_user_active.sql",
-                       "migrations/010_self_created_tasks.sql"
+                       "migrations/010_self_created_tasks.sql",
+                       "migrations/011_family_invites.sql"
                    ],
     "api":  {
                 "basePath":  "/api/tasks",

@@ -916,6 +916,7 @@ function UsersAdmin() {
   const [members, setMembers] = useState<FamilyMemberFull[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [editing, setEditing] = useState<FamilyMemberFull | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -946,7 +947,10 @@ function UsersAdmin() {
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-sm font-semibold text-slate-500">Miembros de la familia</h2>
-        <button onClick={() => setShowCreate(true)} className="text-xs font-bold text-blue-500">+ Nuevo miembro</button>
+        <div className="flex gap-3">
+          <button onClick={() => setShowInvite(true)} className="text-xs font-bold text-blue-500">🔗 Compartir</button>
+          <button onClick={() => setShowCreate(true)} className="text-xs font-bold text-blue-500">+ Nuevo miembro</button>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -981,6 +985,7 @@ function UsersAdmin() {
 
       {showCreate && <CreateMemberModal onClose={() => setShowCreate(false)} onDone={async () => { setShowCreate(false); await load(); }} />}
       {editing && <EditMemberModal member={editing} onClose={() => setEditing(null)} onDone={async () => { setEditing(null); await load(); }} />}
+      {showInvite && <InviteShareModal onClose={() => setShowInvite(false)} />}
     </div>
   );
 }
@@ -1091,6 +1096,94 @@ function EditMemberModal({ member, onClose, onDone }: { member: FamilyMemberFull
             <Button className="flex-1" disabled={busy || !name.trim() || !email.trim()} onClick={submit}>{busy ? 'Guardando…' : 'Guardar'}</Button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Compartir invitación (link para sumar miembros por WhatsApp) ─────────────
+function InviteShareModal({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
+  const [isParent, setIsParent] = useState(false);
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const generate = async () => {
+    if (!user) return;
+    setBusy(true);
+    setMsg('');
+    setCopied(false);
+    try {
+      const { code } = await familyApi.createInvite(user.id, user.companyId, isParent);
+      setLink(`${window.location.origin}/join?code=${code}`);
+    } catch {
+      setMsg('No se pudo generar el link.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const shareText = `¡Sumate a nuestra familia en FamilyTool! 🏠 Entrá a este link para crear tu cuenta: ${link}`;
+
+  const share = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Invitación a FamilyTool', text: shareText });
+        return;
+      } catch {
+        /* el usuario canceló o no está soportado; sigue al fallback */
+      }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch {
+      setMsg('No se pudo copiar. Copialo manualmente.');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-[32px] bg-white p-5 safe-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <h2 className="mb-1 text-lg font-extrabold text-slate-800">Compartir invitación</h2>
+        <p className="mb-4 text-xs text-slate-500">
+          Generá un link para que un familiar se registre solo y quede sumado a esta familia automáticamente. Ideal para mandar por WhatsApp.
+        </p>
+
+        {!link ? (
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <button onClick={() => setIsParent(false)} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${!isParent ? 'bg-amber-400 text-slate-900' : 'bg-slate-100 text-slate-500'}`}>
+                Hijo/a
+              </button>
+              <button onClick={() => setIsParent(true)} className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold ${isParent ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                Padre/Madre
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">El link vence en 7 días y se puede usar varias veces mientras esté activo.</p>
+            {msg && <p className="text-sm text-rose-500">{msg}</p>}
+            <div className="flex gap-2">
+              <Button variant="ghost" className="flex-1" disabled={busy} onClick={onClose}>Cancelar</Button>
+              <Button className="flex-1" disabled={busy} onClick={generate}>{busy ? 'Generando…' : 'Generar link'}</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 break-all">{link}</div>
+            <div className="flex gap-2">
+              <button onClick={copy} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-600">{copied ? '✓ Copiado' : 'Copiar link'}</button>
+              <Button className="flex-1" onClick={share}>📲 Compartir</Button>
+            </div>
+            <button onClick={onClose} className="w-full py-2 text-center text-xs font-semibold text-slate-400">Cerrar</button>
+          </div>
+        )}
       </div>
     </div>
   );
