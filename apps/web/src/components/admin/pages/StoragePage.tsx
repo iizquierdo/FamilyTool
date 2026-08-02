@@ -193,6 +193,32 @@ const StoragePage: React.FC = () => {
                     placeholder="us-east-1"
                   />
                 </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="s3-endpoint">Endpoint (optional)</Label>
+                  <Input
+                    id="s3-endpoint"
+                    type="text"
+                    value={String(form.settings.endpoint || '')}
+                    onChange={(e) => updateSetting('endpoint', e.target.value)}
+                    placeholder="https://bucket.railway.app o similar (dejar vacío para AWS S3)"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Requerido para buckets S3-compatibles fuera de AWS (Railway, MinIO, Backblaze B2, Cloudflare R2, etc.).
+                  </p>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="s3-public-url">Public URL base (opcional)</Label>
+                  <Input
+                    id="s3-public-url"
+                    type="text"
+                    value={String(form.settings.publicUrlBase || '')}
+                    onChange={(e) => updateSetting('publicUrlBase', e.target.value)}
+                    placeholder="https://cdn.tudominio.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Si los archivos se sirven detrás de un CDN o dominio propio, indicalo acá. Si se deja vacío, se arma la URL con el endpoint/bucket.
+                  </p>
+                </div>
               </div>
             )}
 

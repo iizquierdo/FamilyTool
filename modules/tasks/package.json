@@ -14,7 +14,10 @@
     "@sinapsis/module-sdk-client": "workspace:*",
     "@sinapsis/module-sdk-server": "workspace:*",
     "@sinapsis/shared-types": "workspace:*",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "@aws-sdk/client-s3": "^3.686.0",
+    "@aws-sdk/s3-request-presigner": "^3.686.0",
+    "multer": "^2.1.1"
   },
   "peerDependencies": {
     "express": "^5",

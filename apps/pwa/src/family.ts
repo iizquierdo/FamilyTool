@@ -12,9 +12,14 @@ export interface AppNotification {
   createdAt: string;
 }
 
+export interface RankLevel {
+  key: string;
+  label: string;
+  min: number;
+}
 export interface Rank {
-  current: { key: string; label: string; min: number };
-  next: { key: string; label: string; min: number } | null;
+  current: RankLevel;
+  next: RankLevel | null;
   xp: number;
   progress: number;
 }
@@ -62,6 +67,9 @@ export interface Task {
   rejectedReason: string | null;
   selfCreated: boolean;
   subtasks?: Subtask[];
+  attachments?: TaskAttachment[];
+  evidence?: TaskAttachment[];
+  createdAt: string;
 }
 export interface FamilyGoal {
   id: string;
@@ -120,6 +128,7 @@ export interface FamilyConfig {
   currency: string;
   minWithdrawalPoints: number;
   requireResponsibilitiesUpToDate: boolean;
+  rankThresholds: RankLevel[];
 }
 export interface BadgeInfo {
   code: string;
@@ -276,6 +285,32 @@ export function humanizeRrule(rrule: string, startDate?: string): string {
   }
   return rrule;
 }
+
+export interface TaskAttachment {
+  id: string;
+  taskId?: string;
+  kind: 'attachment' | 'evidence';
+  fileUrl: string;
+  originalName: string | null;
+  mimeType: string | null;
+  sizeBytes: number;
+  uploadedById: string | null;
+  createdAt: string;
+}
+
+export const attachmentsApi = {
+  list: (taskId: string, kind?: 'attachment' | 'evidence') =>
+    api.get<TaskAttachment[]>(`/tasks/${taskId}/attachments${kind ? `?kind=${kind}` : ''}`),
+  upload: (taskId: string, file: File, uploaderId: string, kind: 'attachment' | 'evidence') => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('uploaderId', uploaderId);
+    form.append('kind', kind);
+    return api.upload<TaskAttachment>(`/tasks/${taskId}/attachments`, form);
+  },
+  remove: (attachmentId: string, requesterId: string) =>
+    api.del(`/tasks/attachments/${attachmentId}?requesterId=${encodeURIComponent(requesterId)}`)
+};
 
 const PARENT_ROLES = ['administrator', 'admin', 'parent', 'padre', 'madre', 'tutor'];
 export const isParent = (role?: string) => {

@@ -15,7 +15,8 @@ const typeIcon: Record<string, string> = {
   points_minted: '➕',
   points_penalty: '⚠️',
   credit_requested: '💳',
-  transfer_received: '🤝'
+  transfer_received: '🤝',
+  task_open_for_all: '📣'
 };
 
 function timeAgo(iso: string) {

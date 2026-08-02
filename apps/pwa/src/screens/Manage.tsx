@@ -6,6 +6,7 @@ import { ApiError } from '../api';
 import { Card, Button, Spinner, Points, EmptyState } from '../ui';
 import ValidateModal from '../components/ValidateModal';
 import Avatar from '../components/Avatar';
+import TaskAttachments from '../components/TaskAttachments';
 
 type Tab = 'dashboard' | 'approvals' | 'create' | 'points' | 'family' | 'users';
 const TABS: { key: Tab; label: string }[] = [
@@ -16,6 +17,14 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'family', label: 'Familia' },
   { key: 'users', label: 'Usuarios' }
 ];
+
+const lifecycleShort: Record<string, string> = {
+  creada: 'sin publicar',
+  en_espera: 'disponible',
+  doing: 'en curso',
+  done: 'por validar',
+  finalizada: 'completada'
+};
 
 export default function Manage() {
   const [tab, setTab] = useState<Tab>('dashboard');
@@ -289,7 +298,6 @@ function CreateTask() {
   const { user } = useAuth();
   const members = useMembers();
   const [goals, setGoals] = useState<FamilyGoal[]>([]);
-  const [activeTasks, setActiveTasks] = useState<Task[]>([]);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [kind, setKind] = useState<'Paid' | 'Responsibility'>('Responsibility');
   const [title, setTitle] = useState('');
@@ -319,10 +327,13 @@ function CreateTask() {
     }
   };
 
+  const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+
   const loadActiveTasks = useCallback(async () => {
     if (!user) return;
     const all = await familyApi.tasks({ companyId: user.companyId });
-    setActiveTasks(all.filter((t) => t.lifecycle !== 'finalizada'));
+    // Incluye finalizadas: sirven para "Clonar" y reusar la misma tarea más adelante.
+    setRecentTasks([...all].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 15));
   }, [user]);
 
   useEffect(() => {
@@ -396,6 +407,25 @@ function CreateTask() {
   };
 
   const input = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm outline-none focus:border-blue-400';
+
+  const cloneTask = async (t: Task) => {
+    // El listado no trae subtareas: pedimos el detalle completo para clonarlas también.
+    const full = await familyApi.task(t.id).catch(() => t);
+    setKind(full.taskKind);
+    setTitle(full.title);
+    setDescription(full.description || '');
+    setRewardPoints(full.taskKind === 'Paid' && !full.subtasks?.length ? String(full.rewardPoints || '') : '');
+    setRewardXp(full.taskKind === 'Responsibility' && !full.subtasks?.length ? String(full.rewardXp || '') : '');
+    setOwnerId(full.ownerId || '');
+    setGoalId(full.familyGoalId || '');
+    setAvailableUntil('');
+    setDueDate('');
+    setRepeat('none');
+    setWeekDays([]);
+    setSubs((full.subtasks || []).map((s) => ({ title: s.title, points: String(s.points || ''), description: s.description || '' })));
+    setMsg('✅ Se copiaron los datos. Revisá y publicá cuando quieras.');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <>
@@ -526,18 +556,24 @@ function CreateTask() {
       </Button>
     </Card>
 
-      {activeTasks.length > 0 && (
+      {recentTasks.length > 0 && (
         <Card className="space-y-2">
-          <h2 className="text-sm font-semibold text-slate-500">Tareas activas</h2>
-          {activeTasks.map((t) => (
+          <h2 className="text-sm font-semibold text-slate-500">Tareas recientes</h2>
+          <p className="text-[11px] text-slate-400">Cloná cualquiera (incluso ya completadas) para reusarla sin volver a cargarla.</p>
+          {recentTasks.map((t) => (
             <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-slate-700">{t.title}</p>
                 <p className="text-xs text-slate-400">
-                  {t.taskKind === 'Paid' ? `${t.rewardPoints} pts` : `${t.rewardXp} XP`} · {t.ownerName || 'sin asignar'}
+                  {t.taskKind === 'Paid' ? `${t.rewardPoints} pts` : `${t.rewardXp} XP`} · {t.ownerName || 'sin asignar'} · {lifecycleShort[t.lifecycle] || t.lifecycle}
                 </p>
               </div>
-              <button onClick={() => setEditingTask(t)} className="shrink-0 text-xs font-semibold text-blue-500">Editar</button>
+              <div className="flex shrink-0 gap-3">
+                {t.lifecycle !== 'finalizada' && (
+                  <button onClick={() => setEditingTask(t)} className="text-xs font-semibold text-blue-500">Editar</button>
+                )}
+                <button onClick={() => cloneTask(t)} className="text-xs font-semibold text-slate-500">📋 Clonar</button>
+              </div>
             </div>
           ))}
         </Card>
@@ -556,6 +592,7 @@ function CreateTask() {
 }
 
 function EditTaskModal({ task, goals, onClose, onDone }: { task: Task; goals: FamilyGoal[]; onClose: () => void; onDone: () => void }) {
+  const { user } = useAuth();
   const members = useMembers();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
@@ -627,6 +664,17 @@ function EditTaskModal({ task, goals, onClose, onDone }: { task: Task; goals: Fa
                 {goals.map((g) => (<option key={g.id} value={g.id}>{g.title}</option>))}
               </select>
             </label>
+          )}
+          {user && (
+            <TaskAttachments
+              taskId={task.id}
+              kind="attachment"
+              userId={user.id}
+              canUpload
+              canDelete={() => true}
+              title="📎 Material de referencia"
+              emptyText="Sin adjuntos. Podés sumar una foto de ejemplo o instrucciones."
+            />
           )}
           {msg && <p className="text-sm text-rose-500">{msg}</p>}
           <div className="flex gap-2">
@@ -711,6 +759,7 @@ function FamilySettings() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
   const [goalTitle, setGoalTitle] = useState('');
+  const [goalDescription, setGoalDescription] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
   const [editingGoal, setEditingGoal] = useState<FamilyGoal | null>(null);
   const [recs, setRecs] = useState<Recurrence[]>([]);
@@ -718,6 +767,9 @@ function FamilySettings() {
   const [creditLimit, setCreditLimit] = useState('');
   const [creditTarget, setCreditTarget] = useState('');
   const [creditMsg, setCreditMsg] = useState('');
+  const [ranks, setRanks] = useState<{ key: string; label: string; min: string }[]>([]);
+  const [ranksMsg, setRanksMsg] = useState('');
+  const [ranksBusy, setRanksBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -725,6 +777,7 @@ function FamilySettings() {
     setConfig(c);
     setGoals(g);
     setRecs(r);
+    setRanks(c.rankThresholds.map((rk) => ({ key: rk.key, label: rk.label, min: String(rk.min) })));
     setLoading(false);
   }, [user]);
   useEffect(() => { load(); }, [load]);
@@ -750,9 +803,36 @@ function FamilySettings() {
 
   const addGoal = async () => {
     if (!user || !goalTitle.trim()) return;
-    await familyApi.createGoal({ companyId: user.companyId, title: goalTitle.trim(), targetXp: Math.floor(Number(goalTarget) || 0), createdById: user.id });
-    setGoalTitle(''); setGoalTarget('');
+    await familyApi.createGoal({
+      companyId: user.companyId,
+      title: goalTitle.trim(),
+      description: goalDescription.trim() || undefined,
+      targetXp: Math.floor(Number(goalTarget) || 0),
+      createdById: user.id
+    });
+    setGoalTitle(''); setGoalDescription(''); setGoalTarget('');
     await load();
+  };
+
+  const saveRanks = async () => {
+    if (!user) return;
+    setRanksMsg('');
+    const cleaned = ranks
+      .map((r) => ({ key: r.key, label: r.label.trim(), min: Math.max(0, Math.floor(Number(r.min) || 0)) }))
+      .filter((r) => r.label);
+    if (cleaned.length === 0) return setRanksMsg('Agregá al menos un nivel.');
+    cleaned.sort((a, b) => a.min - b.min);
+    setRanksBusy(true);
+    try {
+      const updated = await familyApi.updateConfig(user.companyId, user.id, { rankThresholds: cleaned });
+      setConfig(updated);
+      setRanks(updated.rankThresholds.map((rk) => ({ key: rk.key, label: rk.label, min: String(rk.min) })));
+      setRanksMsg('✅ Niveles guardados.');
+    } catch {
+      setRanksMsg('No se pudo guardar.');
+    } finally {
+      setRanksBusy(false);
+    }
   };
 
   const saveCreditLimit = async () => {
@@ -791,17 +871,57 @@ function FamilySettings() {
       </Card>
 
       <Card className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-500">Niveles / Rangos (XP) 🏅</h2>
+        <p className="text-xs text-slate-400">Definí cuánta reputación (XP) hace falta para alcanzar cada nivel. El primero siempre arranca en 0.</p>
+        {ranks.map((r, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              value={r.label}
+              onChange={(e) => setRanks(ranks.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+              placeholder={`Nivel ${i + 1}`}
+              className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-400"
+            />
+            <input
+              type="number"
+              inputMode="numeric"
+              value={r.min}
+              disabled={i === 0}
+              onChange={(e) => setRanks(ranks.map((x, j) => (j === i ? { ...x, min: e.target.value } : x)))}
+              placeholder="XP mín."
+              className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-400 disabled:opacity-50"
+            />
+            <button type="button" disabled={ranks.length <= 1} onClick={() => setRanks(ranks.filter((_, j) => j !== i))} className="px-1 text-rose-500 disabled:opacity-30">
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setRanks([...ranks, { key: `rank_${ranks.length}_${Date.now()}`, label: '', min: '' }])}
+          className="text-xs font-semibold text-blue-500"
+        >
+          + Agregar nivel
+        </button>
+        {ranksMsg && <p className="text-sm text-slate-500">{ranksMsg}</p>}
+        <Button className="w-full" disabled={ranksBusy} onClick={saveRanks}>{ranksBusy ? 'Guardando…' : 'Guardar niveles'}</Button>
+      </Card>
+
+      <Card className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-500">Metas familiares</h2>
         {goals.map((g) => (
-          <div key={g.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            <span className="text-slate-700">{g.title} <span className="text-xs text-slate-500">({g.currentXp}/{g.targetXp} XP)</span></span>
-            <div className="flex shrink-0 gap-3">
-              <button onClick={() => setEditingGoal(g)} className="text-xs font-semibold text-blue-500">Editar</button>
-              <button onClick={async () => { await familyApi.deleteGoal(g.id); await load(); }} className="text-xs text-rose-500">Borrar</button>
+          <div key={g.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-700">{g.title} <span className="text-xs text-slate-500">({g.currentXp}/{g.targetXp} XP)</span></span>
+              <div className="flex shrink-0 gap-3">
+                <button onClick={() => setEditingGoal(g)} className="text-xs font-semibold text-blue-500">Editar</button>
+                <button onClick={async () => { await familyApi.deleteGoal(g.id); await load(); }} className="text-xs text-rose-500">Borrar</button>
+              </div>
             </div>
+            {g.description && <p className="mt-0.5 text-xs text-slate-400">{g.description}</p>}
           </div>
         ))}
         <input value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} placeholder="Nueva meta (ej: Vacaciones)" className={input} />
+        <textarea value={goalDescription} onChange={(e) => setGoalDescription(e.target.value)} placeholder="Descripción (opcional) — para qué es esta meta" className={input} rows={2} />
         <input type="number" inputMode="numeric" value={goalTarget} onChange={(e) => setGoalTarget(e.target.value)} placeholder="XP objetivo" className={input} />
         <Button variant="ghost" className="w-full" disabled={!goalTitle.trim()} onClick={addGoal}>Agregar meta</Button>
       </Card>

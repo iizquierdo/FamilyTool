@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { familyApi, type Task } from '../family';
 import { Button, Spinner } from '../ui';
+import TaskAttachments from './TaskAttachments';
 
 const lifecycleLabel: Record<string, string> = {
   creada: 'Sin publicar',
@@ -130,6 +131,28 @@ export default function TaskDetailModal({
                   </p>
                 )}
               </div>
+            )}
+
+            <TaskAttachments
+              taskId={task.id}
+              kind="attachment"
+              userId={userId}
+              canUpload={false}
+              canDelete={() => false}
+              title="📎 Material de referencia"
+              emptyText="Sin adjuntos."
+            />
+
+            {(canCheck || (task.evidence && task.evidence.length > 0)) && (
+              <TaskAttachments
+                taskId={task.id}
+                kind="evidence"
+                userId={userId}
+                canUpload={canCheck}
+                canDelete={(a) => canCheck && a.uploadedById === userId}
+                title="📸 Evidencia"
+                emptyText="Subí una foto o video cuando termines, antes de marcarla hecha."
+              />
             )}
 
             <div className="mt-6 flex gap-2">

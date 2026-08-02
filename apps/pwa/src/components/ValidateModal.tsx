@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { familyApi, type Task } from '../family';
 import { Button, Spinner } from '../ui';
+import TaskAttachments from './TaskAttachments';
 
 export default function ValidateModal({
   taskId,
@@ -122,6 +123,16 @@ export default function ValidateModal({
             ))}
           </div>
         )}
+
+        <TaskAttachments
+          taskId={task.id}
+          kind="evidence"
+          userId={validatorId}
+          canUpload={false}
+          canDelete={() => false}
+          title="📸 Evidencia que subió"
+          emptyText="No adjuntó fotos ni videos."
+        />
 
         <div className="mt-4 flex items-center justify-between rounded-2xl bg-blue-50 px-4 py-3">
           <span className="text-sm font-medium text-slate-600">Va a pagar</span>

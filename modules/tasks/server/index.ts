@@ -8,6 +8,8 @@ import {
 } from '@sinapsis/module-sdk-server';
 import { reserveNextReference } from '@sinapsis/module-sdk-server';
 import { registerFamilyRoutes, expireStaleTasks, generateDueRecurrences } from './family';
+import { registerAttachmentRoutes } from './attachments';
+import { resolveDisplayUrl } from './storage';
 
 interface TaskModuleContext {
   app: express.Express;
@@ -59,6 +61,16 @@ const buildTaskByIdFetcher = (pool: Pool) => async (taskId: string) => {
       [taskId]
     );
     task.subtasks = subs.rows;
+    const files = await pool.query(
+      'SELECT id, kind, "fileUrl", "filePath", "originalName", "mimeType", "sizeBytes", "uploadedById", "createdAt" FROM "TaskAttachment" WHERE "taskId" = $1 ORDER BY "createdAt" ASC',
+      [taskId]
+    );
+    // La URL guardada puede haber vencido (S3 firmada): se resuelve fresca al leer.
+    const withFreshUrls = await Promise.all(
+      files.rows.map(async (f: any) => ({ ...f, fileUrl: (await resolveDisplayUrl(pool, f.filePath)) || f.fileUrl }))
+    );
+    task.attachments = withFreshUrls.filter((f: any) => f.kind === 'attachment');
+    task.evidence = withFreshUrls.filter((f: any) => f.kind === 'evidence');
   }
   return task;
 };
@@ -78,6 +90,8 @@ export default function registerTasksModule({ app, pool }: TaskModuleContext) {
 
   // FamilyTool: registra rutas de economía, billetera, metas y ciclo de vida.
   registerFamilyRoutes(router, pool, { getTaskById, ensureActive });
+  // FamilyTool: adjuntos de referencia y evidencia de tareas completadas.
+  registerAttachmentRoutes(router, pool, { ensureActive });
 
 
   router.get('/openapi.json', async (req, res) => {
@@ -263,6 +277,10 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
 
       const title = String(req.body?.title || '').trim();
       const createdById = String(req.body?.createdById || '').trim();
+      // "Sin asignar" = el padre dejó "— Cualquiera —" en el form. ownerId sigue siendo
+      // NOT NULL (se completa con el creador), pero guardamos la intención por separado
+      // para poder avisarle a toda la familia cuando se publique.
+      const unassigned = !String(req.body?.ownerId || '').trim();
       const ownerId = String(req.body?.ownerId || '').trim() || createdById;
       const companyId = String(req.body?.companyId || '').trim();
 
@@ -285,9 +303,9 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
 
       await pool.query(
         `INSERT INTO "Task" (id, code, title, description, status, priority, category, "startDate", "dueDate", "completedAt", visibility, "companyId", "createdById", "ownerId",
-           "taskKind", "rewardPoints", "rewardXp", lifecycle, "availableUntil", "familyGoalId", "createdAt", "updatedAt")
+           "taskKind", "rewardPoints", "rewardXp", lifecycle, "availableUntil", "familyGoalId", "unassigned", "createdAt", "updatedAt")
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamp, $9::timestamp, $10::timestamp, $11, $12, $13, $14,
-           $15, $16, $17, $18, $19::timestamp, $20, NOW(), NOW())`,
+           $15, $16, $17, $18, $19::timestamp, $20, $21, NOW(), NOW())`,
         [
           id,
           code,
@@ -308,7 +326,8 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
           rewardXp,
           lifecycle,
           availableUntil,
-          familyGoalId
+          familyGoalId,
+          unassigned
         ]
       );
 

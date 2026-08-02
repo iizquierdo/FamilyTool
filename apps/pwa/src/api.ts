@@ -66,12 +66,33 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  // Sin Content-Type: el navegador arma el multipart/form-data boundary solo.
+
+  const res = await fetch(`${API_BASE}/api${path}`, { method: 'POST', headers, body: form });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    if (res.status === 401 && token) {
+      setToken(null);
+      setStoredUser(null);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('familytool:unauthorized'));
+    }
+    throw new ApiError(res.status, data);
+  }
+  return data as T;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   del: <T>(path: string) => request<T>('DELETE', path),
+  upload,
   ApiError
 };
 

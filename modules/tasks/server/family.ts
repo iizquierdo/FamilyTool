@@ -54,15 +54,32 @@ export const RANKS = [
   { key: 'master', label: 'Maestro del Hogar', min: 1500 }
 ];
 
-export const computeRank = (xp: number) => {
+export const computeRank = (xp: number, ranks: typeof RANKS = RANKS) => {
   const x = Number(xp || 0);
-  let current = RANKS[0];
-  for (const r of RANKS) if (x >= r.min) current = r;
-  const next = RANKS.find((r) => r.min > x) || null;
+  const list = Array.isArray(ranks) && ranks.length ? ranks : RANKS;
+  let current = list[0];
+  for (const r of list) if (x >= r.min) current = r;
+  const next = list.find((r) => r.min > x) || null;
   const progress = next
     ? Math.min(1, (x - current.min) / (next.min - current.min))
     : 1;
   return { current, next, xp: x, progress };
+};
+
+// Normaliza los umbrales de rango recibidos del admin: limpia tipos, ordena por
+// mínimo ascendente y fuerza que el primer rango arranque en 0. Si no hay nada
+// válido, devuelve los rangos por defecto.
+export const sanitizeRanks = (input: unknown): typeof RANKS => {
+  if (!Array.isArray(input) || !input.length) return RANKS;
+  const cleaned = input
+    .map((r: any, i: number) => ({
+      key: String(r?.key || '').trim() || `rank_${i}`,
+      label: String(r?.label || '').trim() || `Rango ${i + 1}`,
+      min: Math.max(0, Math.floor(Number(r?.min) || 0))
+    }))
+    .sort((a, b) => a.min - b.min);
+  cleaned[0].min = 0;
+  return cleaned;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -227,15 +244,21 @@ const hashPasswordForUser = (plain: string): string => {
 
 export const getFamilyConfig = async (pool: Pool, companyId: string) => {
   const r = await pool.query('SELECT * FROM "FamilyConfig" WHERE "companyId" = $1 LIMIT 1', [companyId]);
-  if (r.rows[0]) return r.rows[0];
-  // Si no existe (familia creada después del install), crear con defaults.
-  await pool.query(
-    `INSERT INTO "FamilyConfig" ("companyId", "pointsPerUnit", "currency", "minWithdrawalPoints", "requireResponsibilitiesUpToDate", "createdAt", "updatedAt")
-     VALUES ($1, 100, 'USD', 0, TRUE, NOW(), NOW()) ON CONFLICT ("companyId") DO NOTHING`,
-    [companyId]
-  );
-  const again = await pool.query('SELECT * FROM "FamilyConfig" WHERE "companyId" = $1 LIMIT 1', [companyId]);
-  return again.rows[0];
+  let row = r.rows[0];
+  if (!row) {
+    // Si no existe (familia creada después del install), crear con defaults.
+    await pool.query(
+      `INSERT INTO "FamilyConfig" ("companyId", "pointsPerUnit", "currency", "minWithdrawalPoints", "requireResponsibilitiesUpToDate", "createdAt", "updatedAt")
+       VALUES ($1, 100, 'USD', 0, TRUE, NOW(), NOW()) ON CONFLICT ("companyId") DO NOTHING`,
+      [companyId]
+    );
+    const again = await pool.query('SELECT * FROM "FamilyConfig" WHERE "companyId" = $1 LIMIT 1', [companyId]);
+    row = again.rows[0];
+  }
+  // Sin umbrales propios todavía: exponer los rangos por defecto para que el
+  // admin los vea y pueda partir de ahí.
+  row.rankThresholds = sanitizeRanks(row.rankThresholds);
+  return row;
 };
 
 // Candado pedagógico: ¿tiene el usuario sus responsabilidades vencidas al día?
@@ -548,6 +571,26 @@ export function registerFamilyRoutes(
         `UPDATE "Task" SET lifecycle = 'en_espera', "availableUntil" = $1, "updatedAt" = NOW() WHERE id = $2`,
         [availableUntil && !Number.isNaN(availableUntil.getTime()) ? availableUntil.toISOString() : null, task.id]
       );
+
+      // Sin asignar (el padre eligió "— Cualquiera —"): se avisa por push a toda la familia.
+      if (task.unassigned) {
+        const kindLabel = task.taskKind === 'Paid' ? 'actividad paga' : 'responsabilidad';
+        const rewardLabel = task.taskKind === 'Paid' ? `${task.rewardPoints} pts` : `${task.rewardXp} XP`;
+        const members = await pool.query('SELECT id FROM "User" WHERE "companyId" = $1 AND active IS NOT FALSE', [task.companyId]);
+        for (const m of members.rows) {
+          await notify(
+            pool,
+            m.id,
+            task.companyId,
+            'task_open_for_all',
+            `Nueva ${kindLabel} disponible`,
+            `"${task.title}" · ${rewardLabel} · Es para quien la tome primero.`,
+            'task',
+            task.id
+          );
+        }
+      }
+
       res.json(await getTaskById(task.id));
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to publish task', details: error.message });
@@ -754,10 +797,12 @@ export function registerFamilyRoutes(
       const wallet = r.rows[0] || { moneyPoints: 0, xpPoints: 0 };
       const creditLimit = Number(wallet.creditLimit || 0);
       const creditUsed = Number(wallet.creditUsed || 0);
+      const companyId = wallet.companyId || (await resolveUserCompanyId(pool, userId));
+      const config = companyId ? await getFamilyConfig(pool, companyId) : null;
       res.json({
         moneyPoints: Number(wallet.moneyPoints || 0),
         xpPoints: Number(wallet.xpPoints || 0),
-        rank: computeRank(Number(wallet.xpPoints || 0)),
+        rank: computeRank(Number(wallet.xpPoints || 0), config?.rankThresholds),
         creditLimit,
         creditUsed,
         creditAvailable: Math.max(0, creditLimit - creditUsed)
@@ -1126,9 +1171,10 @@ export function registerFamilyRoutes(
       const currency = req.body?.currency != null ? String(req.body.currency) : current.currency;
       const minWithdrawalPoints = req.body?.minWithdrawalPoints != null ? Math.max(0, Math.floor(Number(req.body.minWithdrawalPoints))) : current.minWithdrawalPoints;
       const requireResp = req.body?.requireResponsibilitiesUpToDate != null ? Boolean(req.body.requireResponsibilitiesUpToDate) : current.requireResponsibilitiesUpToDate;
+      const rankThresholds = req.body?.rankThresholds != null ? sanitizeRanks(req.body.rankThresholds) : current.rankThresholds;
       await pool.query(
-        `UPDATE "FamilyConfig" SET "pointsPerUnit" = $1, currency = $2, "minWithdrawalPoints" = $3, "requireResponsibilitiesUpToDate" = $4, "updatedAt" = NOW() WHERE "companyId" = $5`,
-        [pointsPerUnit, currency, minWithdrawalPoints, requireResp, companyId]
+        `UPDATE "FamilyConfig" SET "pointsPerUnit" = $1, currency = $2, "minWithdrawalPoints" = $3, "requireResponsibilitiesUpToDate" = $4, "rankThresholds" = $5::jsonb, "updatedAt" = NOW() WHERE "companyId" = $6`,
+        [pointsPerUnit, currency, minWithdrawalPoints, requireResp, JSON.stringify(rankThresholds), companyId]
       );
       res.json(await getFamilyConfig(pool, companyId));
     } catch (error: any) {

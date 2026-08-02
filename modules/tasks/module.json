@@ -18,7 +18,10 @@
                        "migrations/008_push.sql",
                        "migrations/009_user_active.sql",
                        "migrations/010_self_created_tasks.sql",
-                       "migrations/011_family_invites.sql"
+                       "migrations/011_family_invites.sql",
+                       "migrations/012_attachments.sql",
+                       "migrations/013_rank_thresholds.sql",
+                       "migrations/014_unassigned_flag.sql"
                    ],
     "api":  {
                 "basePath":  "/api/tasks",
