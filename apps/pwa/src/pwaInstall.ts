@@ -2,6 +2,7 @@
 // utilidades para detectar plataforma y si ya está instalada.
 let deferredPrompt: any = null;
 let listenerAttached = false;
+const availabilityListeners = new Set<() => void>();
 
 export function initPwaInstallListener() {
   if (listenerAttached || typeof window === 'undefined') return;
@@ -9,11 +10,20 @@ export function initPwaInstallListener() {
   window.addEventListener('beforeinstallprompt', (e: any) => {
     e.preventDefault();
     deferredPrompt = e;
+    availabilityListeners.forEach((cb) => cb());
   });
 }
 
 export function canPromptInstall(): boolean {
   return !!deferredPrompt;
+}
+
+// Chrome dispara `beforeinstallprompt` de forma asíncrona (a veces después del primer
+// render). Los componentes que quieran mostrar un botón de instalar en cuanto esté
+// disponible se suscriben acá en vez de solo leer canPromptInstall() al montar.
+export function onInstallAvailable(cb: () => void): () => void {
+  availabilityListeners.add(cb);
+  return () => availabilityListeners.delete(cb);
 }
 
 export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unavailable'> {
