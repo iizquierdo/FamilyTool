@@ -1,4 +1,4 @@
-// FamilyTool — Motor de economía familiar + ciclo de vida de tareas.
+// OrganiHogar — Motor de economía familiar + ciclo de vida de tareas.
 // Se registra sobre el router del módulo Tasks (/api/tasks).
 import express from 'express';
 import crypto from 'crypto';
@@ -12,7 +12,7 @@ const ensureVapid = (): boolean => {
   if (vapidReady) return true;
   const pub = process.env.VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
-  const sub = process.env.VAPID_SUBJECT || 'mailto:familytool@example.com';
+  const sub = process.env.VAPID_SUBJECT || 'mailto:organihogar@example.com';
   if (!pub || !priv) return false;
   try {
     webpush.setVapidDetails(sub, pub, priv);
@@ -219,7 +219,7 @@ const ensureChildRoleId = async (pool: Pool): Promise<string> => {
   const roleId = crypto.randomUUID();
   await pool.query(
     `INSERT INTO "Role" (id, name, description, "createdAt", "updatedAt")
-     VALUES ($1, 'Miembro', 'Miembro de familia (FamilyTool)', NOW(), NOW())`,
+     VALUES ($1, 'Miembro', 'Miembro de familia (OrganiHogar)', NOW(), NOW())`,
     [roleId]
   );
   const mod = await pool.query('SELECT id FROM "SystemModule" WHERE code = $1 LIMIT 1', ['TASKS']);
@@ -594,6 +594,25 @@ export function registerFamilyRoutes(
       res.json(await getTaskById(task.id));
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to publish task', details: error.message });
+    }
+  });
+
+  // en_espera → creada (despublicar: la oculta de nuevo para los miembros)
+  router.post('/:id/unpublish', async (req, res) => {
+    try {
+      if (!(await guard(res))) return;
+      const task = await getTaskById(req.params.id);
+      if (!task) return res.status(404).json({ error: 'Task not found' });
+      if (task.lifecycle !== 'en_espera') {
+        return res.status(409).json({ error: `Task cannot be unpublished from '${task.lifecycle}'.` });
+      }
+      await pool.query(
+        `UPDATE "Task" SET lifecycle = 'creada', "availableUntil" = NULL, "updatedAt" = NOW() WHERE id = $1`,
+        [task.id]
+      );
+      res.json(await getTaskById(task.id));
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to unpublish task', details: error.message });
     }
   });
 

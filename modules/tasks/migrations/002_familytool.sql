@@ -1,4 +1,4 @@
--- FamilyTool: extiende el módulo Tasks con economía familiar, ciclo de vida de tareas,
+-- OrganiHogar: extiende el módulo Tasks con economía familiar, ciclo de vida de tareas,
 -- billetera, transferencias, retiros y metas familiares. Idempotente.
 
 -- ─────────────────────────────────────────────────────────────────────────────

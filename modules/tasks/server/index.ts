@@ -88,9 +88,9 @@ export default function registerTasksModule({ app, pool }: TaskModuleContext) {
     return String(mod.rows[0]?.status || '') === 'Active';
   };
 
-  // FamilyTool: registra rutas de economía, billetera, metas y ciclo de vida.
+  // OrganiHogar: registra rutas de economía, billetera, metas y ciclo de vida.
   registerFamilyRoutes(router, pool, { getTaskById, ensureActive });
-  // FamilyTool: adjuntos de referencia y evidencia de tareas completadas.
+  // OrganiHogar: adjuntos de referencia y evidencia de tareas completadas.
   registerAttachmentRoutes(router, pool, { ensureActive });
 
 
@@ -174,7 +174,7 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
       if (!(await ensureActive())) return res.status(409).json({ error: 'Task module is not active.' });
 
       const companyId = String(req.query.companyId || '').trim();
-      // FamilyTool: genera instancias de tareas recurrentes que ya vencieron su ocurrencia.
+      // OrganiHogar: genera instancias de tareas recurrentes que ya vencieron su ocurrencia.
       if (companyId) await generateDueRecurrences(pool, companyId);
       // Vence las tareas cuyo countdown expiró (vuelven a 'creada').
       await expireStaleTasks(pool);
@@ -292,7 +292,7 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
       const code = await nextTaskCode(companyId);
       const id = crypto.randomUUID();
 
-      // FamilyTool: tipo de tarea, recompensas y ciclo de vida.
+      // OrganiHogar: tipo de tarea, recompensas y ciclo de vida.
       const taskKind = String(req.body?.taskKind || 'Responsibility') === 'Paid' ? 'Paid' : 'Responsibility';
       const rewardPoints = Math.max(0, Math.floor(Number(req.body?.rewardPoints || 0)));
       const rewardXp = Math.max(0, Math.floor(Number(req.body?.rewardXp || 0)));
@@ -339,7 +339,7 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
         );
       }
 
-      // FamilyTool: subtareas con puntos propios.
+      // OrganiHogar: subtareas con puntos propios.
       const subtasks = Array.isArray(req.body?.subtasks) ? req.body.subtasks : [];
       let order = 0;
       for (const sub of subtasks) {
@@ -360,7 +360,7 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
     }
   });
 
-  // FamilyTool: un usuario crea su propia actividad no paga, auto-asignada.
+  // OrganiHogar: un usuario crea su propia actividad no paga, auto-asignada.
   // Nace en 'doing' (ya tomada por él mismo) y sin puntos: el padre/madre los
   // determina al validar (por defecto 0). No admite subtareas ni pago en $.
   router.post('/self', async (req, res) => {
@@ -410,7 +410,7 @@ window.ui = SwaggerUIBundle({ url: '/api/tasks/openapi.json', dom_id: '#swagger-
 
       const shareWith = normalizeTaskShares(req.body?.shareWith || existing.sharedUserIds || []);
 
-      // FamilyTool: recompensa y meta son opcionales en la edición — si no vienen, se conservan.
+      // OrganiHogar: recompensa y meta son opcionales en la edición — si no vienen, se conservan.
       const rewardPoints = req.body?.rewardPoints != null ? Math.max(0, Math.floor(Number(req.body.rewardPoints) || 0)) : existing.rewardPoints;
       const rewardXp = req.body?.rewardXp != null ? Math.max(0, Math.floor(Number(req.body.rewardXp) || 0)) : existing.rewardXp;
       const familyGoalId = req.body?.familyGoalId !== undefined ? (String(req.body.familyGoalId || '').trim() || null) : existing.familyGoalId;

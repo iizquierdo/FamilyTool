@@ -1,4 +1,4 @@
--- FamilyTool: invitaciones para sumar miembros a una familia existente por link
+-- OrganiHogar: invitaciones para sumar miembros a una familia existente por link
 -- (ej. compartido por WhatsApp). Quien lo abre se registra y queda asociado a esa
 -- familia directamente, sin crear un tenant nuevo. Idempotente.
 CREATE TABLE IF NOT EXISTS "FamilyInvite" (

@@ -1,6 +1,6 @@
 {
-  "name": "FamilyTool",
-  "short_name": "FamilyTool",
+  "name": "OrganiHogar",
+  "short_name": "OrganiHogar",
   "description": "Gestión de tareas familiares con gamificación y puntos.",
   "start_url": "/",
   "display": "standalone",

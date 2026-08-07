@@ -1,4 +1,4 @@
-# Deploy en Railway — FamilyTool
+# Deploy en Railway — OrganiHogar
 
 Tres servicios en el mismo proyecto de Railway, todos apuntando al **mismo repo de GitHub**:
 **Postgres** · **API** (backend) · **PWA** (frontend).
@@ -32,7 +32,7 @@ Railway → **New** → **GitHub Repo** → elegí el repo.
 
   `deploy:prepare` es **idempotente** y hace, en orden: `prisma generate` → `prisma migrate deploy`
   → **bootstrap** (siembra los datos iniciales SOLO si la base está vacía) → instala el módulo
-  `tasks` → provisiona FamilyTool. Se corre en cada deploy sin romper nada.
+  `tasks` → provisiona OrganiHogar. Se corre en cada deploy sin romper nada.
 - **Variables:**
   | Variable | Valor |
   |---|---|
@@ -45,7 +45,7 @@ Railway → **New** → **GitHub Repo** → elegí el repo.
   | `VAPID_SUBJECT` | `mailto:tu@email.com` |
   | `NODE_ENV` | `production` |
   | `PORT` | *(lo inyecta Railway solo)* |
-- **Settings → Networking → Generate Domain.** Anotá la URL, ej: `https://familytool-api.up.railway.app`.
+- **Settings → Networking → Generate Domain.** Anotá la URL, ej: `https://organihogar-api.up.railway.app`.
 
 ## 3) PWA (frontend)
 Railway → **New** → **GitHub Repo** → el mismo repo (otro servicio).

@@ -9,8 +9,8 @@ export default function Login() {
     <div className="min-h-full flex flex-col justify-center px-6 py-10 safe-top">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 text-center">
-          <img src="/icon.svg" alt="FamilyTool" className="mx-auto mb-4 h-20 w-20 rounded-[22px] shadow-[0_10px_30px_rgba(47,107,255,0.3)]" />
-          <h1 className="text-2xl font-extrabold text-slate-800">FamilyTool</h1>
+          <img src="/icon.svg" alt="OrganiHogar" className="mx-auto mb-4 h-20 w-20 rounded-[22px] shadow-[0_10px_30px_rgba(47,107,255,0.3)]" />
+          <h1 className="text-2xl font-extrabold text-slate-800">OrganiHogar</h1>
           <p className="mt-1 text-sm text-slate-500">Tareas en familia, con recompensas.</p>
         </div>
 

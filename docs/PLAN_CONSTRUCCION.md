@@ -1,12 +1,12 @@
-# FamilyTool — Plan de construcción
+# OrganiHogar — Plan de construcción
 
-> Cómo se construye FamilyTool **extendiendo el módulo `tasks`** de la plantilla Sinapsis,
+> Cómo se construye OrganiHogar **extendiendo el módulo `tasks`** de la plantilla Sinapsis,
 > con la PWA en `apps/pwa` consumiendo `apps/api`.
 > Última actualización: 2026-07-24
 
 ## Decisiones de arquitectura (confirmadas)
 - ✅ La PWA (`apps/pwa`) consume la misma API (`apps/api`).
-- ✅ La lógica de FamilyTool **extiende el módulo `tasks`** (no se crea módulo nuevo).
+- ✅ La lógica de OrganiHogar **extiende el módulo `tasks`** (no se crea módulo nuevo).
 - ✅ Puertos: DB **5544** (base `familytool_db`, volumen `familytool_pgdata`, contenedor
   `familytool-db`), API **4099**, Web/Admin **3599**, PWA **3699**.
 - ✅ Familia = tenant (Organization/Company). Roles Padre/Hijo = RBAC.
@@ -56,7 +56,7 @@
 - Pendiente (polish): pull-to-refresh, empezar tareas desde notificación, vistas de "padre"
   dentro de la PWA (crear tareas, aprobar retiros) o dejarlas en el admin (M5).
 
-> **Decisión de arquitectura (RBAC):** en FamilyTool el módulo TASKS **es** la app, así que
+> **Decisión de arquitectura (RBAC):** en OrganiHogar el módulo TASKS **es** la app, así que
 > `install.ts` siembra permisos de TASKS para **todos los roles** (todo miembro accede). Las
 > acciones "solo padre" (emitir puntos, aprobar retiros, editar config) se validan a nivel
 > endpoint con `isParentUser`, no por RBAC de módulo.

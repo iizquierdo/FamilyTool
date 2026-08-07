@@ -2328,7 +2328,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// FamilyTool: alta autoservicio — crea una Organization + Company (nuevo tenant)
+// OrganiHogar: alta autoservicio — crea una Organization + Company (nuevo tenant)
 // y un usuario Administrator de esa Company. A diferencia de /api/auth/register
 // (que suma un usuario a una company existente), este SIEMPRE crea tenant nuevo.
 app.post('/api/auth/register-tenant', async (req, res) => {
@@ -2407,7 +2407,7 @@ const ensureInviteChildRoleId = async (): Promise<string> => {
 
     const roleId = crypto.randomUUID();
     await pool.query(
-        `INSERT INTO "Role" (id, name, description, "createdAt", "updatedAt") VALUES ($1, 'Miembro', 'Miembro de familia (FamilyTool)', NOW(), NOW())`,
+        `INSERT INTO "Role" (id, name, description, "createdAt", "updatedAt") VALUES ($1, 'Miembro', 'Miembro de familia (OrganiHogar)', NOW(), NOW())`,
         [roleId]
     );
     const mod = await pool.query('SELECT id FROM "SystemModule" WHERE code = $1 LIMIT 1', ['TASKS']);

@@ -508,7 +508,7 @@ const App: React.FC = () => {
     <div className="animate-in fade-in space-y-6 duration-500">
       <Card className="shadow-xs">
         <CardContent className="pt-6">
-          <h2 className="text-foreground text-2xl font-bold">Consola de administración · FamilyTool</h2>
+          <h2 className="text-foreground text-2xl font-bold">Consola de administración · OrganiHogar</h2>
           <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
             Este panel es solo para <strong>administración y configuración</strong> de la familia.
             La app que usan los miembros (billetera, tareas, responsabilidades, metas y

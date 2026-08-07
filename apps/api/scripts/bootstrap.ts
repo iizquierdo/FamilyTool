@@ -1,4 +1,4 @@
-// FamilyTool — Bootstrap seguro para deploy. Siembra los datos iniciales SOLO si la
+// OrganiHogar — Bootstrap seguro para deploy. Siembra los datos iniciales SOLO si la
 // base está vacía (0 usuarios). En deploys posteriores no hace nada (no destruye datos).
 // Se corre después de `prisma migrate deploy`.
 import dotenv from 'dotenv';

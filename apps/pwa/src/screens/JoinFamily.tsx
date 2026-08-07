@@ -81,8 +81,8 @@ export default function JoinFamily({ code }: { code: string }) {
     <div className="flex min-h-full flex-col justify-center px-6 py-10 safe-top">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 text-center">
-          <img src="/icon.svg" alt="FamilyTool" className="mx-auto mb-4 h-20 w-20 rounded-[22px] shadow-[0_10px_30px_rgba(47,107,255,0.3)]" />
-          <h1 className="text-2xl font-extrabold text-slate-800">FamilyTool</h1>
+          <img src="/icon.svg" alt="OrganiHogar" className="mx-auto mb-4 h-20 w-20 rounded-[22px] shadow-[0_10px_30px_rgba(47,107,255,0.3)]" />
+          <h1 className="text-2xl font-extrabold text-slate-800">OrganiHogar</h1>
         </div>
 
         {status === 'checking' && <p className="text-center text-sm text-slate-500">Verificando invitación…</p>}
@@ -220,7 +220,7 @@ function OnboardingStep({ user, token }: { user: SessionUser; token: string }) {
         )}
 
         <button onClick={finish} className="w-full rounded-2xl bg-blue-500 py-3.5 font-bold text-white transition active:scale-95">
-          Ir a FamilyTool
+          Ir a OrganiHogar
         </button>
       </div>
     </div>

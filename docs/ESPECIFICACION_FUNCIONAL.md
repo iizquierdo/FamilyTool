@@ -1,4 +1,4 @@
-# FamilyTool — Especificación Funcional
+# OrganiHogar — Especificación Funcional
 
 > Documento vivo. Se construye de forma conversacional antes de escribir código.
 > Última actualización: 2026-07-24
@@ -7,7 +7,7 @@
 
 ## 1. Visión y objetivo
 
-**FamilyTool** es una aplicación (PWA + panel de administración web) para gestionar
+**OrganiHogar** es una aplicación (PWA + panel de administración web) para gestionar
 las tareas de una familia mediante **gamificación**. El objetivo es doble y está en
 tensión deliberada:
 
@@ -164,7 +164,7 @@ Flujo:
 
 ## 12. Stack técnico y arquitectura
 
-FamilyTool se construye **sobre la plantilla existente "Sinapsis CRM/ERP"** (monorepo pnpm).
+OrganiHogar se construye **sobre la plantilla existente "Sinapsis CRM/ERP"** (monorepo pnpm).
 Ver [PLANTILLA_BASE.md](./PLANTILLA_BASE.md) para el detalle completo de lo que ya trae.
 
 - **Monorepo pnpm** (Node ≥ 20).
@@ -175,9 +175,9 @@ Ver [PLANTILLA_BASE.md](./PLANTILLA_BASE.md) para el detalle completo de lo que 
 - **Lógica de negocio:** como **módulo(s) plug-and-play** en `modules/*` (ej. un módulo
   `family` o adaptar/derivar del módulo `tasks`).
 
-### 12.1 Mapeo FamilyTool ↔ plantilla (qué está resuelto y qué falta)
+### 12.1 Mapeo OrganiHogar ↔ plantilla (qué está resuelto y qué falta)
 
-| Necesidad FamilyTool | Estado en la plantilla | Acción |
+| Necesidad OrganiHogar | Estado en la plantilla | Acción |
 |----------------------|------------------------|--------|
 | SaaS multi-familia | ✅ Multi-tenant `Organization → Company → User` | **Familia = tenant** (Organization/Company). Reusar. |
 | Roles padre / hijo | ✅ RBAC (`Role`, `Permission`, `SystemModule`) | Definir roles "Padre/Admin" e "Hijo/Participante". |

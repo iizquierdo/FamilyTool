@@ -1,10 +1,10 @@
-// FamilyTool — Provisión idempotente del entorno.
-// Deja el web (tenant) como consola de administración de FamilyTool:
+// OrganiHogar — Provisión idempotente del entorno.
+// Deja el web (tenant) como consola de administración de OrganiHogar:
 //   - Rebranding del Core (appName + colores).
 //   - Módulo TASKS activo + permisos para todos los roles.
-//   - Módulos del CRM genérico (que NO son FamilyTool) desactivados.
+//   - Módulos del CRM genérico (que NO son OrganiHogar) desactivados.
 //   - Menú lateral limpio: Dashboard + Settings.
-// Reproducible en cualquier base: `pnpm familytool:provision`.
+// Reproducible en cualquier base: `pnpm organihogar:provision`.
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,9 +19,9 @@ dotenv.config({ path: path.join(apiRoot, '.env'), override: true });
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const FAMILYTOOL_MODULE = 'TASKS';
-// Módulos de la plantilla genérica que NO forman parte de FamilyTool.
-const NON_FAMILYTOOL_MODULES = ['CLIENTS', 'CRM', 'EXPENSES', 'FIN_DOCS', 'ASSETS'];
+const ORGANIHOGAR_MODULE = 'TASKS';
+// Módulos de la plantilla genérica que NO forman parte de OrganiHogar.
+const NON_ORGANIHOGAR_MODULES = ['CLIENTS', 'CRM', 'EXPENSES', 'FIN_DOCS', 'ASSETS'];
 
 // Menú deseado del web (admin/config). Los módulos de la familia viven en la PWA.
 const DESIRED_MENU: {
@@ -57,12 +57,12 @@ const DESIRED_MENU: {
 async function main() {
   // 1) Branding
   await pool.query(
-    `UPDATE "Core" SET "appName" = 'FamilyTool', "primaryColor" = '#6366f1', "secondaryColor" = '#f4f4f5', "updatedAt" = NOW() WHERE id = 1`
+    `UPDATE "Core" SET "appName" = 'OrganiHogar', "primaryColor" = '#6366f1', "secondaryColor" = '#f4f4f5', "updatedAt" = NOW() WHERE id = 1`
   );
 
-  // 2) Módulo FamilyTool activo + permisos para todos los roles
-  await pool.query(`UPDATE "SystemModule" SET status = 'Active', "updatedAt" = NOW() WHERE code = $1`, [FAMILYTOOL_MODULE]);
-  const taskMod = await pool.query('SELECT id FROM "SystemModule" WHERE code = $1 LIMIT 1', [FAMILYTOOL_MODULE]);
+  // 2) Módulo OrganiHogar activo + permisos para todos los roles
+  await pool.query(`UPDATE "SystemModule" SET status = 'Active', "updatedAt" = NOW() WHERE code = $1`, [ORGANIHOGAR_MODULE]);
+  const taskMod = await pool.query('SELECT id FROM "SystemModule" WHERE code = $1 LIMIT 1', [ORGANIHOGAR_MODULE]);
   const taskModuleId = taskMod.rows[0]?.id as string | undefined;
   if (taskModuleId) {
     await pool.query(
@@ -74,7 +74,7 @@ async function main() {
   }
 
   // 3) Desactivar los módulos del CRM genérico
-  await pool.query(`UPDATE "SystemModule" SET status = 'Inactive', "updatedAt" = NOW() WHERE code = ANY($1)`, [NON_FAMILYTOOL_MODULES]);
+  await pool.query(`UPDATE "SystemModule" SET status = 'Inactive', "updatedAt" = NOW() WHERE code = ANY($1)`, [NON_ORGANIHOGAR_MODULES]);
 
   // 4) Menú lateral: reconstruir declarativamente
   const desiredKeys = DESIRED_MENU.map((g) => g.key);
@@ -103,7 +103,7 @@ async function main() {
   // Resumen
   const groups = await pool.query(`SELECT label FROM "MenuGroup" WHERE placement = 'sidebar' ORDER BY "sortOrder"`);
   const active = await pool.query(`SELECT code FROM "SystemModule" WHERE status = 'Active' ORDER BY code`);
-  console.log('✅ FamilyTool provisionado.');
+  console.log('✅ OrganiHogar provisionado.');
   console.log('   Menú sidebar:', groups.rows.map((r: any) => r.label).join(' · '));
   console.log('   Módulos activos:', active.rows.map((r: any) => r.code).join(', '));
 }

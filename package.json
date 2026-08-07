@@ -12,8 +12,8 @@
     "dev": "pnpm -r --parallel --filter @sinapsis/web --filter @sinapsis/api run dev",
     "dev:web": "pnpm --filter @sinapsis/web run dev",
     "dev:api": "pnpm --filter @sinapsis/api run dev",
-    "dev:pwa": "pnpm --filter @familytool/pwa run dev",
-    "dev:family": "pnpm -r --parallel --filter @familytool/pwa --filter @sinapsis/api run dev",
+    "dev:pwa": "pnpm --filter @organihogar/pwa run dev",
+    "dev:family": "pnpm -r --parallel --filter @organihogar/pwa --filter @sinapsis/api run dev",
     "build": "pnpm --filter @sinapsis/web run build && pnpm --filter @sinapsis/api run build",
     "build:web": "pnpm --filter @sinapsis/web run build",
     "build:api": "pnpm --filter @sinapsis/api run build",
@@ -26,11 +26,11 @@
     "module:install": "pnpm --filter @sinapsis/api run module:install --",
     "module:uninstall": "pnpm --filter @sinapsis/api run module:uninstall --",
     "module:status": "pnpm --filter @sinapsis/api run module:status --",
-    "familytool:provision": "pnpm --filter @sinapsis/api exec tsx scripts/familytool-provision.ts",
-    "familytool:seed-tasks": "pnpm --filter @sinapsis/api exec tsx scripts/seed-example-tasks.ts",
-    "deploy:prepare": "pnpm --filter @sinapsis/api run prisma:generate && pnpm --filter @sinapsis/api run prisma:deploy && pnpm --filter @sinapsis/api exec tsx scripts/bootstrap.ts && pnpm --filter @sinapsis/api exec tsx scripts/module-manager.ts install tasks && pnpm familytool:provision",
+    "organihogar:provision": "pnpm --filter @sinapsis/api exec tsx scripts/organihogar-provision.ts",
+    "organihogar:seed-tasks": "pnpm --filter @sinapsis/api exec tsx scripts/seed-example-tasks.ts",
+    "deploy:prepare": "pnpm --filter @sinapsis/api run prisma:generate && pnpm --filter @sinapsis/api run prisma:deploy && pnpm --filter @sinapsis/api exec tsx scripts/bootstrap.ts && pnpm --filter @sinapsis/api exec tsx scripts/module-manager.ts install tasks && pnpm organihogar:provision",
     "start:api": "pnpm --filter @sinapsis/api run start",
-    "start:pwa": "pnpm --filter @familytool/pwa run start",
-    "build:pwa": "pnpm --filter @familytool/pwa run build"
+    "start:pwa": "pnpm --filter @organihogar/pwa run start",
+    "build:pwa": "pnpm --filter @organihogar/pwa run build"
   }
 }

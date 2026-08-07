@@ -1,6 +1,6 @@
-// FamilyTool — Seed de tareas de ejemplo para la familia de demo.
+// OrganiHogar — Seed de tareas de ejemplo para la familia de demo.
 // Idempotente: borra las tareas de ejemplo previas (code 'EJ-%') y las recrea.
-// Uso: pnpm familytool:seed-tasks
+// Uso: pnpm organihogar:seed-tasks
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import path from 'path';

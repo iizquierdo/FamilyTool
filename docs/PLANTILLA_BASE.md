@@ -1,13 +1,13 @@
 # Plantilla base — "Sinapsis CRM/ERP"
 
-> Documentación del template existente sobre el que se construirá **FamilyTool**.
+> Documentación del template existente sobre el que se construirá **OrganiHogar**.
 > Generado a partir de una exploración del código (backend, frontend y sistema de módulos).
 > Última actualización: 2026-07-24
 >
-> ⚠️ Esta plantilla es un producto genérico CRM/ERP. FamilyTool la reutiliza como
+> ⚠️ Esta plantilla es un producto genérico CRM/ERP. OrganiHogar la reutiliza como
 > **base técnica** (multi-tenant, RBAC, módulos plug-and-play). No todo lo que aquí se
 > documenta se usará; ver [ESPECIFICACION_FUNCIONAL.md](./ESPECIFICACION_FUNCIONAL.md)
-> para el mapeo FamilyTool ↔ plantilla.
+> para el mapeo OrganiHogar ↔ plantilla.
 
 ---
 
@@ -226,7 +226,7 @@ Provee **tenant scoping, catálogos y numeración** (no hay helper de mailing):
 | **assets** | `ASSETS` | ❌ (solo admin) | Catálogo de activos e instancias multi-company |
 | **subscription-plans** | `SUBSCRIPTION_PLANS` | ❌ (solo admin) | Catálogo de planes SaaS + asignación por org |
 
-#### Módulo `tasks` (el más relevante para FamilyTool)
+#### Módulo `tasks` (el más relevante para OrganiHogar)
 - **Tablas:**
   - `Task`: `id`, `code` (único, vía `reserveNextReference`), `title`, `description`,
     `status` (default `Todo`), `priority` (default `Medium`), `category`, `startDate`,
@@ -241,7 +241,7 @@ Provee **tenant scoping, catálogos y numeración** (no hay helper de mailing):
   optimista), `TaskDetails`. Modal de crear/editar con owner + "compartir con" multiusuario.
 
 *(Detalle de los otros 6 módulos disponible en el mapeo interno; se documentan bajo demanda
-cuando se decida cuáles reutilizar o quitar en FamilyTool.)*
+cuando se decida cuáles reutilizar o quitar en OrganiHogar.)*
 
 ### 4.4 Convenciones transversales
 - Todo route de tenant valida `ensureActive()` (status del `SystemModule`).

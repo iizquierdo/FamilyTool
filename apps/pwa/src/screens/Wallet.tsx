@@ -30,7 +30,7 @@ const reasonIcon: Record<string, string> = {
 };
 
 const card = 'rounded-[14px] bg-white p-5 shadow-[0_8px_30px_rgba(31,42,68,0.08)]';
-const notifyWallet = () => window.dispatchEvent(new Event('familytool:wallet-changed'));
+const notifyWallet = () => window.dispatchEvent(new Event('organihogar:wallet-changed'));
 
 function Spin() {
   return (

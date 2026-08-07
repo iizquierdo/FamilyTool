@@ -1,4 +1,4 @@
--- FamilyTool: subtareas con puntos propios. Cada subtarea puede aprobarse o no al validar;
+-- OrganiHogar: subtareas con puntos propios. Cada subtarea puede aprobarse o no al validar;
 -- solo las aprobadas pagan sus puntos. Idempotente.
 
 CREATE TABLE IF NOT EXISTS "TaskSubtask" (

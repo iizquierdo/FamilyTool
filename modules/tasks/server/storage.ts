@@ -1,4 +1,4 @@
-// FamilyTool — Adaptador de storage para adjuntos de tareas. Lee la configuración
+// OrganiHogar — Adaptador de storage para adjuntos de tareas. Lee la configuración
 // guardada desde /admin/storage (PlatformSetting key 'storage') y sube el archivo a
 // Local (disco, bajo STORAGE_ROOT) o S3 (o cualquier proveedor S3-compatible: Railway
 // buckets, MinIO, Backblaze B2, Cloudflare R2, etc. vía "endpoint").

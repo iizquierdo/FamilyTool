@@ -1,4 +1,4 @@
--- FamilyTool: tareas recurrentes (RRULE, estilo Google Calendar). Una "recurrencia" es
+-- OrganiHogar: tareas recurrentes (RRULE, estilo Google Calendar). Una "recurrencia" es
 -- una plantilla que genera instancias de Task cuando llega cada ocurrencia. Idempotente.
 
 CREATE TABLE IF NOT EXISTS "TaskRecurrence" (

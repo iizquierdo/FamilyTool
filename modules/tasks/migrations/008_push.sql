@@ -1,4 +1,4 @@
--- FamilyTool: suscripciones a Web Push (una por dispositivo/navegador). Idempotente.
+-- OrganiHogar: suscripciones a Web Push (una por dispositivo/navegador). Idempotente.
 CREATE TABLE IF NOT EXISTS "PushSubscription" (
     "id"        TEXT NOT NULL,
     "userId"    TEXT NOT NULL,

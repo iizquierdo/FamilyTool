@@ -1,4 +1,4 @@
--- FamilyTool: notificaciones por usuario. Idempotente.
+-- OrganiHogar: notificaciones por usuario. Idempotente.
 CREATE TABLE IF NOT EXISTS "Notification" (
     "id"        TEXT NOT NULL,
     "userId"    TEXT NOT NULL,

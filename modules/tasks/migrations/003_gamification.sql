@@ -1,4 +1,4 @@
--- FamilyTool: gamificación — rachas (streaks) e insignias (badges). Idempotente.
+-- OrganiHogar: gamificación — rachas (streaks) e insignias (badges). Idempotente.
 
 CREATE TABLE IF NOT EXISTS "UserStreak" (
     "userId"            TEXT NOT NULL,

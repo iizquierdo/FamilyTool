@@ -1,4 +1,4 @@
-// Tipos y llamadas específicas del dominio FamilyTool (sobre /api/tasks).
+// Tipos y llamadas específicas del dominio OrganiHogar (sobre /api/tasks).
 import { api, type SessionUser } from './api';
 
 export interface AppNotification {
@@ -188,6 +188,7 @@ export const familyApi = {
   createTask: (body: Record<string, unknown>) => api.post<Task>('/tasks', body),
   updateTask: (id: string, body: Record<string, unknown>) => api.put<Task>(`/tasks/${id}`, body),
   publishTask: (id: string, availableUntil: string | null) => api.post<Task>(`/tasks/${id}/publish`, { availableUntil }),
+  unpublishTask: (id: string) => api.post<Task>(`/tasks/${id}/unpublish`, {}),
   // ── Actividad propia: el usuario la crea, se auto-asigna, y el puntaje lo define quien valida ──
   createOwnActivity: (body: { userId: string; companyId: string; title: string; description?: string; dueDate?: string }) =>
     api.post<Task>('/tasks/self', body),

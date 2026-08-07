@@ -41,8 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Si cualquier request devuelve 401 (sesión vencida), volvemos al login.
   useEffect(() => {
     const onUnauthorized = () => setUser(null);
-    window.addEventListener('familytool:unauthorized', onUnauthorized);
-    return () => window.removeEventListener('familytool:unauthorized', onUnauthorized);
+    window.addEventListener('organihogar:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('organihogar:unauthorized', onUnauthorized);
   }, []);
 
   const login = async (email: string, password: string) => {

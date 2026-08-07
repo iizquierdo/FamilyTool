@@ -1,4 +1,4 @@
--- FamilyTool: adjuntos de tareas. "attachment" = material de referencia que carga el
+-- OrganiHogar: adjuntos de tareas. "attachment" = material de referencia que carga el
 -- padre al crear/editar la tarea (ej. foto de ejemplo). "evidence" = fotos/videos que
 -- carga el hijo al marcar la tarea como hecha, para que el padre las vea al validar.
 CREATE TABLE IF NOT EXISTS "TaskAttachment" (

@@ -1,4 +1,4 @@
-// FamilyTool — Adjuntos de tareas: material de referencia (padres) y evidencia de
+// OrganiHogar — Adjuntos de tareas: material de referencia (padres) y evidencia de
 // tareas completadas (fotos/videos que suben los hijos al marcar como hecha).
 import express from 'express';
 import crypto from 'crypto';

@@ -82,10 +82,10 @@ export default function Header() {
     load();
     const t = setInterval(load, 30000);
     const onWallet = () => load();
-    window.addEventListener('familytool:wallet-changed', onWallet);
+    window.addEventListener('organihogar:wallet-changed', onWallet);
     return () => {
       clearInterval(t);
-      window.removeEventListener('familytool:wallet-changed', onWallet);
+      window.removeEventListener('organihogar:wallet-changed', onWallet);
     };
   }, [load]);
 

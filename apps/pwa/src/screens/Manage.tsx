@@ -305,7 +305,6 @@ function CreateTask() {
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardXp, setRewardXp] = useState('');
   const [ownerId, setOwnerId] = useState('');
-  const [availableUntil, setAvailableUntil] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [goalId, setGoalId] = useState('');
   const [subs, setSubs] = useState<{ title: string; points: string; description: string }[]>([]);
@@ -381,7 +380,7 @@ function CreateTask() {
         return;
       }
 
-      const task = await familyApi.createTask({
+      await familyApi.createTask({
         title: title.trim(),
         description: description.trim() || undefined,
         companyId: user.companyId,
@@ -394,10 +393,9 @@ function CreateTask() {
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
         familyGoalId: goalId || undefined
       });
-      // Publicar: pasa a 'en_espera' (con countdown si se indicó).
-      await familyApi.publishTask(task.id, availableUntil ? new Date(availableUntil).toISOString() : null);
-      setMsg('✅ Tarea creada y publicada.');
-      setTitle(''); setDescription(''); setRewardPoints(''); setRewardXp(''); setAvailableUntil(''); setDueDate(''); setGoalId(''); setSubs([]);
+      // Nace en stop (creada): el admin la activa (▶️) desde "Tareas recientes" cuando quiera publicarla.
+      setMsg('✅ Tarea creada. Activala (▶️) cuando quieras publicarla.');
+      setTitle(''); setDescription(''); setRewardPoints(''); setRewardXp(''); setDueDate(''); setGoalId(''); setSubs([]);
       await loadActiveTasks();
     } catch {
       setMsg('No se pudo crear la tarea.');
@@ -418,13 +416,27 @@ function CreateTask() {
     setRewardXp(full.taskKind === 'Responsibility' && !full.subtasks?.length ? String(full.rewardXp || '') : '');
     setOwnerId(full.ownerId || '');
     setGoalId(full.familyGoalId || '');
-    setAvailableUntil('');
     setDueDate('');
     setRepeat('none');
     setWeekDays([]);
     setSubs((full.subtasks || []).map((s) => ({ title: s.title, points: String(s.points || ''), description: s.description || '' })));
     setMsg('✅ Se copiaron los datos. Revisá y publicá cuando quieras.');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const [togglingId, setTogglingId] = useState('');
+  const toggleLifecycle = async (t: Task) => {
+    if (togglingId) return;
+    setTogglingId(t.id);
+    try {
+      if (t.lifecycle === 'creada') await familyApi.publishTask(t.id, null);
+      else if (t.lifecycle === 'en_espera') await familyApi.unpublishTask(t.id);
+      await loadActiveTasks();
+    } catch {
+      setMsg('No se pudo cambiar el estado de la tarea.');
+    } finally {
+      setTogglingId('');
+    }
   };
 
   return (
@@ -456,10 +468,6 @@ function CreateTask() {
           <option value="">— Cualquiera —</option>
           {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
         </select>
-      </label>
-      <label className="block text-xs text-slate-400">
-        Cuenta regresiva (opcional)
-        <input type="datetime-local" value={availableUntil} onChange={(e) => setAvailableUntil(e.target.value)} className={input + ' mt-1'} />
       </label>
       <label className="block text-xs text-slate-400">
         Vence (para el candado pedagógico, opcional)
@@ -552,7 +560,7 @@ function CreateTask() {
 
       {msg && <p className="text-sm text-slate-500">{msg}</p>}
       <Button className="w-full" disabled={busy || !title.trim()} onClick={submit}>
-        {busy ? 'Creando…' : repeat !== 'none' ? 'Crear tarea recurrente' : 'Crear y publicar'}
+        {busy ? 'Creando…' : repeat !== 'none' ? 'Crear tarea recurrente' : 'Crear tarea'}
       </Button>
     </Card>
 
@@ -560,22 +568,35 @@ function CreateTask() {
         <Card className="space-y-2">
           <h2 className="text-sm font-semibold text-slate-500">Tareas recientes</h2>
           <p className="text-[11px] text-slate-400">Cloná cualquiera (incluso ya completadas) para reusarla sin volver a cargarla.</p>
-          {recentTasks.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-slate-700">{t.title}</p>
-                <p className="text-xs text-slate-400">
-                  {t.taskKind === 'Paid' ? `${t.rewardPoints} pts` : `${t.rewardXp} XP`} · {t.ownerName || 'sin asignar'} · {lifecycleShort[t.lifecycle] || t.lifecycle}
-                </p>
+          {recentTasks.map((t) => {
+            const toggleable = t.lifecycle === 'creada' || t.lifecycle === 'en_espera';
+            const isLive = t.lifecycle !== 'creada';
+            return (
+              <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => toggleable && toggleLifecycle(t)}
+                  disabled={!toggleable || togglingId === t.id}
+                  title={toggleable ? (isLive ? 'Activa (visible para la familia) · tocá para pausar' : 'En stop (solo la ve el admin) · tocá para activar') : lifecycleShort[t.lifecycle] || t.lifecycle}
+                  className={`shrink-0 text-base leading-none ${toggleable ? 'cursor-pointer' : 'cursor-default opacity-60'} ${isLive ? 'text-emerald-500' : 'text-slate-400'}`}
+                >
+                  {isLive ? '▶️' : '⏸️'}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-slate-700">{t.title}</p>
+                  <p className="text-xs text-slate-400">
+                    {t.taskKind === 'Paid' ? `${t.rewardPoints} pts` : `${t.rewardXp} XP`} · {t.ownerName || 'sin asignar'}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-3">
+                  {t.lifecycle !== 'finalizada' && (
+                    <button onClick={() => setEditingTask(t)} title="Editar" aria-label="Editar" className="text-base text-blue-500">✏️</button>
+                  )}
+                  <button onClick={() => cloneTask(t)} title="Clonar" aria-label="Clonar" className="text-base text-slate-500">📋</button>
+                </div>
               </div>
-              <div className="flex shrink-0 gap-3">
-                {t.lifecycle !== 'finalizada' && (
-                  <button onClick={() => setEditingTask(t)} className="text-xs font-semibold text-blue-500">Editar</button>
-                )}
-                <button onClick={() => cloneTask(t)} className="text-xs font-semibold text-slate-500">📋 Clonar</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </Card>
       )}
 
@@ -1245,12 +1266,12 @@ function InviteShareModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const shareText = `¡Sumate a nuestra familia en FamilyTool! 🏠 Entrá a este link para crear tu cuenta: ${link}`;
+  const shareText = `¡Sumate a nuestra familia en OrganiHogar! 🏠 Entrá a este link para crear tu cuenta: ${link}`;
 
   const share = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Invitación a FamilyTool', text: shareText });
+        await navigator.share({ title: 'Invitación a OrganiHogar', text: shareText });
         return;
       } catch {
         /* el usuario canceló o no está soportado; sigue al fallback */

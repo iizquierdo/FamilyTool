@@ -1,9 +1,9 @@
 // Cliente HTTP de la PWA.
 // - En dev: VITE_API_BASE_URL vacío → usa /api (Vite proxea al API en 4099).
-// - En prod (Railway): VITE_API_BASE_URL = URL pública del API (ej: https://familytool-api.up.railway.app).
+// - En prod (Railway): VITE_API_BASE_URL = URL pública del API (ej: https://organihogar-api.up.railway.app).
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-const TOKEN_KEY = 'familytool.token';
-const USER_KEY = 'familytool.user';
+const TOKEN_KEY = 'organihogar.token';
+const USER_KEY = 'organihogar.user';
 
 export interface SessionUser {
   id: string;
@@ -59,7 +59,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     if (res.status === 401 && token) {
       setToken(null);
       setStoredUser(null);
-      if (typeof window !== 'undefined') window.dispatchEvent(new Event('familytool:unauthorized'));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('organihogar:unauthorized'));
     }
     throw new ApiError(res.status, data);
   }
@@ -79,7 +79,7 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
     if (res.status === 401 && token) {
       setToken(null);
       setStoredUser(null);
-      if (typeof window !== 'undefined') window.dispatchEvent(new Event('familytool:unauthorized'));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('organihogar:unauthorized'));
     }
     throw new ApiError(res.status, data);
   }

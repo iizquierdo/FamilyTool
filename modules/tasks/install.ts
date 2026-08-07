@@ -98,7 +98,7 @@ export default async function installTasksModule(ctx: InstallContext) {
   });
   await propagateReferenceTemplateToAllCompanies(pool, 'TASKS', 'TASKS');
 
-  // FamilyTool: asegura una configuración por familia (company) con valores por defecto.
+  // OrganiHogar: asegura una configuración por familia (company) con valores por defecto.
   await pool.query(
     `INSERT INTO "FamilyConfig" ("companyId", "pointsPerUnit", "currency", "minWithdrawalPoints", "requireResponsibilitiesUpToDate", "createdAt", "updatedAt")
      SELECT c.id, 100, 'USD', 0, TRUE, NOW(), NOW()
@@ -106,7 +106,7 @@ export default async function installTasksModule(ctx: InstallContext) {
      ON CONFLICT ("companyId") DO NOTHING`
   );
 
-  // FamilyTool: en la app familiar el módulo ES la aplicación, así que todo miembro
+  // OrganiHogar: en la app familiar el módulo ES la aplicación, así que todo miembro
   // (todo rol) necesita acceso. Los permisos "solo padre" (emitir, aprobar retiros,
   // editar config) se validan a nivel endpoint (isParentUser), no por RBAC.
   // Sembramos permisos de TASKS para cada rol que aún no los tenga.
@@ -122,7 +122,7 @@ export default async function installTasksModule(ctx: InstallContext) {
     );
   }
 
-  // FamilyTool: catálogo de insignias (gamificación).
+  // OrganiHogar: catálogo de insignias (gamificación).
   const badges: [string, string, string, string, number][] = [
     ['FIRST_TASK', 'Primer paso', 'Completaste tu primera tarea', '🎯', 0],
     ['STREAK_3', 'En racha', '3 días seguidos colaborando', '🔥', 1],
